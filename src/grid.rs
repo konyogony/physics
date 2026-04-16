@@ -1,3 +1,4 @@
+use crate::DEFAULT_RADIUS;
 use crate::utils::smoothstep;
 use crate::{Model, particle::Particle};
 use nannou::{
@@ -180,7 +181,7 @@ impl Grid {
                 let y_f32 = y as f32;
                 let pos = pt2(x_f32, y_f32);
                 let particle = Particle::new(
-                    5.0,
+                    DEFAULT_RADIUS,
                     nannou::color::srgba(1.0, 0.3, 0.1, 0.6),
                     pos,
                     Point2::ZERO,

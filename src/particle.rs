@@ -1,3 +1,4 @@
+use crate::DEFAULT_LINE_DISTANCE;
 use crate::Model;
 use crate::TIME_SCALE;
 use nannou::{App, Draw};
@@ -33,11 +34,13 @@ impl Particle {
         self.position += self.velocity * dt;
     }
 
-    pub fn draw(&self, _app: &App, _model: &Model, draw: &Draw) {
+    pub fn draw(&self, _app: &App, model: &Model, draw: &Draw) {
+        let scale: f32 = DEFAULT_LINE_DISTANCE as f32 / model.grid.line_distance as f32;
+        let radius = self.radius / scale;
         if !self.hidden {
             draw.ellipse()
                 .xy(self.position)
-                .radius(self.radius)
+                .radius(radius)
                 .color(self.color);
         }
     }

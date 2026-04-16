@@ -9,7 +9,8 @@ use nannou::{
 
 use crate::{grid::Grid, particle::Particle};
 
-const LINE_DISTANCE: usize = 30;
+const DEFAULT_LINE_DISTANCE: usize = 30;
+const DEFAULT_RADIUS: f32 = 5.0;
 const HIHGLIGHT_DISTANCE: usize = 3;
 const ARROW_SCALING: f32 = 30.0;
 const MIN_ARROW_SCLAE: f32 = 0.7;
@@ -41,7 +42,7 @@ fn model_fn(app: &App) -> Model {
     let color_highlight = nannou::color::srgba(0.0, 1.0, 1.0, 0.4);
 
     let grid = Grid::new(
-        LINE_DISTANCE,
+        DEFAULT_LINE_DISTANCE,
         color_axis,
         color_grid,
         color_highlight,
@@ -70,6 +71,16 @@ fn update_fn(app: &App, model: &mut Model, _update: Update) {
     //     model.last_key_press_pts = Some(app.time);
     // }
 
+    if app.keys.down.contains(&Key::Equals) {
+        model.grid.line_distance += 1;
+        model.last_key_press_pts = Some(app.time)
+    }
+
+    if app.keys.down.contains(&Key::Minus) {
+        model.grid.line_distance -= 1;
+        model.last_key_press_pts = Some(app.time)
+    }
+
     if app.keys.down.contains(&Key::Period) && model.color_value < 1000.0 {
         model.color_value += 1.0;
         model.last_key_press_pts = Some(app.time);
@@ -82,7 +93,7 @@ fn update_fn(app: &App, model: &mut Model, _update: Update) {
     if app.mouse.buttons.left().is_down() {
         let mouse_pos = pt2(app.mouse.x, app.mouse.y);
         let particle = Particle::new(
-            5.0,
+            DEFAULT_RADIUS,
             nannou::color::srgba(1.0, 0.3, 0.1, 0.6),
             mouse_pos,
             Point2::ZERO,
