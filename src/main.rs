@@ -26,6 +26,7 @@ pub struct Model {
     _window: window::Id,
     color_value: f32,
     time_scale: f32,
+    grid: Grid,
     last_key_press_pts: Option<f32>,
     particles: Vec<Particle>,
 }
@@ -34,13 +35,27 @@ pub struct Model {
 fn model_fn(app: &App) -> Model {
     let _window = app.new_window().view(view_fn).build().unwrap();
 
-    let particle1 = Particle::new(5.0, nannou::color::srgba(1.0, 0.3, 0.1, 0.6), pt2(0.0, 1.0));
+    let color_axis = nannou::color::srgba(1.0, 1.0, 1.0, 0.8);
+    let color_grid = nannou::color::srgba(0.5, 0.5, 0.5, 0.15);
+    let color_highlight = nannou::color::srgba(0.0, 1.0, 1.0, 0.4);
+
+    let grid = Grid::new(
+        LINE_DISTANCE,
+        color_axis,
+        color_grid,
+        color_highlight,
+        HIHGLIGHT_DISTANCE,
+        MIN_ARROW_SCLAE,
+        ARROW_SCALING,
+    );
+
     Model {
         _window,
         color_value: 200.0,
         time_scale: 1.0,
         last_key_press_pts: None,
-        particles: vec![particle1],
+        grid,
+        particles: Vec::new(),
     }
 }
 
@@ -69,38 +84,34 @@ fn update_fn(app: &App, model: &mut Model, _update: Update) {
         model.particles.push(particle);
     }
 
+    if app.keys.down.contains(&Key::P) {
+        let mut particles = model.grid.init_grid_particles(app);
+        model.particles.append(&mut particles);
+    }
+
+    if app.keys.down.contains(&Key::C) {
+        model.particles.clear();
+    }
+
     for particle in &mut model.particles {
         particle.update_pos(app, arrow_function);
     }
 }
 
 // Arrow function responsible for the vectors themselves at each point in space
-fn arrow_function(x: f32, y: f32) -> Point2 {
-    let x_output = y;
-    let y_output = x;
+fn arrow_function(x: f32, y: f32, t: f32) -> Point2 {
+    let x_output = y + x * t.sin();
+    let y_output = -x + y * t.cos();
     pt2(x_output, y_output)
 }
 
 // Responsible solely for rendering all the parts
 fn view_fn(app: &App, model: &Model, frame: Frame) {
-    let color_axis = nannou::color::srgba(1.0, 1.0, 1.0, 0.8);
-    let color_grid = nannou::color::srgba(0.5, 0.5, 0.5, 0.15);
-    let color_highlight = nannou::color::srgba(0.0, 1.0, 1.0, 0.4);
-
     // Get window information & draw
     let draw = app.draw();
 
-    let grid = Grid::new(
-        LINE_DISTANCE,
-        color_axis,
-        color_grid,
-        color_highlight,
-        HIHGLIGHT_DISTANCE,
-        MIN_ARROW_SCLAE,
-        ARROW_SCALING,
-    );
-    grid.draw_grid(app, model, &draw);
-    grid.draw_vectors(app, model, &draw, arrow_function);
+    model.grid.draw_grid(app, model, &draw);
+    model.grid.draw_vectors(app, model, &draw, arrow_function);
 
     let alpha = if let Some(last_press) = model.last_key_press_pts
         && (app.time - last_press) < 3.0
@@ -112,13 +123,15 @@ fn view_fn(app: &App, model: &Model, frame: Frame) {
 
     draw.text(
         format!(
-            "Color Value: {}, Time Scale: {}",
-            model.color_value, model.time_scale
+            "FPS: {:.2}, Color Value: {}, Time Scale: {}",
+            app.fps(),
+            model.color_value,
+            model.time_scale
         )
         .as_str(),
     )
     .xy(pt2(
-        app.window_rect().right() - 100.0,
+        app.window_rect().right() - 250.0,
         app.window_rect().top() - 10.0,
     ))
     .rgba(1.0, 1.0, 1.0, alpha);

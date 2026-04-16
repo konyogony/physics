@@ -1,5 +1,5 @@
-use crate::Model;
 use crate::utils::smoothstep;
+use crate::{Model, particle::Particle};
 use nannou::{
     App, Draw,
     color::{self, Srgba, hsv},
@@ -114,7 +114,8 @@ impl Grid {
     // Use generics to pass in a function
     pub fn draw_vectors<F>(&self, app: &App, model: &Model, draw: &Draw, arrow_function: F)
     where
-        F: Fn(f32, f32) -> Point2,
+        // x, y, t
+        F: Fn(f32, f32, f32) -> Point2,
     {
         // Get window information
         let window_rect = app.window_rect();
@@ -135,7 +136,7 @@ impl Grid {
                 let y_f32 = y as f32;
 
                 let relative_origin = pt2(x_f32, y_f32);
-                let vec = arrow_function(x_f32, y_f32);
+                let vec = arrow_function(x_f32, y_f32, app.time);
 
                 let len = vec.length();
                 let strength = len / (len + model.color_value);
@@ -156,5 +157,32 @@ impl Grid {
                     .color(color);
             }
         }
+    }
+
+    pub fn init_grid_particles(&self, app: &App) -> Vec<Particle> {
+        let mut particles = Vec::<Particle>::new();
+        // Get window information
+        let window_rect = app.window_rect();
+        let (min_x, max_x, min_y, max_y) = (
+            window_rect.left(),
+            window_rect.right(),
+            window_rect.bottom(),
+            window_rect.top(),
+        );
+
+        // Have to do this, or otherwise vectors wont align with intersections
+        let start_x = (min_x / self.line_distance as f32).ceil() as i32 * self.line_distance as i32;
+        let start_y = (min_y / self.line_distance as f32).ceil() as i32 * self.line_distance as i32;
+
+        for x in (start_x..max_x as i32).step_by(self.line_distance) {
+            for y in (start_y..max_y as i32).step_by(self.line_distance) {
+                let x_f32 = x as f32;
+                let y_f32 = y as f32;
+                let pos = pt2(x_f32, y_f32);
+                let particle = Particle::new(5.0, nannou::color::srgba(1.0, 0.3, 0.1, 0.6), pos);
+                particles.push(particle);
+            }
+        }
+        particles
     }
 }
