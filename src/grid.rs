@@ -179,7 +179,12 @@ impl Grid {
                 let x_f32 = x as f32;
                 let y_f32 = y as f32;
                 let pos = pt2(x_f32, y_f32);
-                let particle = Particle::new(5.0, nannou::color::srgba(1.0, 0.3, 0.1, 0.6), pos);
+                let particle = Particle::new(
+                    5.0,
+                    nannou::color::srgba(1.0, 0.3, 0.1, 0.6),
+                    pos,
+                    Point2::ZERO,
+                );
                 particles.push(particle);
             }
         }

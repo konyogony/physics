@@ -1,3 +1,4 @@
+use cgmath::{Angle, Deg};
 use nannou::{
     App, Frame,
     event::{Key, Update},
@@ -8,7 +9,7 @@ use nannou::{
 
 use crate::{grid::Grid, particle::Particle};
 
-const LINE_DISTANCE: usize = 50;
+const LINE_DISTANCE: usize = 30;
 const HIHGLIGHT_DISTANCE: usize = 3;
 const ARROW_SCALING: f32 = 30.0;
 const MIN_ARROW_SCLAE: f32 = 0.7;
@@ -80,7 +81,12 @@ fn update_fn(app: &App, model: &mut Model, _update: Update) {
 
     if app.mouse.buttons.left().is_down() {
         let mouse_pos = pt2(app.mouse.x, app.mouse.y);
-        let particle = Particle::new(5.0, nannou::color::srgba(1.0, 0.3, 0.1, 0.6), mouse_pos);
+        let particle = Particle::new(
+            5.0,
+            nannou::color::srgba(1.0, 0.3, 0.1, 0.6),
+            mouse_pos,
+            Point2::ZERO,
+        );
         model.particles.push(particle);
     }
 
@@ -99,9 +105,15 @@ fn update_fn(app: &App, model: &mut Model, _update: Update) {
 }
 
 // Arrow function responsible for the vectors themselves at each point in space
+// Basically governs the velocity of the particle at any particular point in space-time
 fn arrow_function(x: f32, y: f32, t: f32) -> Point2 {
-    let x_output = y + x * t.sin();
-    let y_output = -x + y * t.cos();
+    let r = (x * x + y * y).sqrt() + 0.001;
+
+    let angle = t * 0.5;
+
+    let x_output = -y / r + 0.3 * angle.cos() * x;
+    let y_output = x / r + 0.3 * angle.sin() * y;
+
     pt2(x_output, y_output)
 }
 

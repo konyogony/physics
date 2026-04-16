@@ -8,15 +8,17 @@ pub struct Particle {
     pub color: Srgba,
     pub position: Point2,
     pub hidden: bool,
+    pub velocity: Point2,
 }
 
 impl Particle {
-    pub fn new(radius: f32, color: Srgba, position: Point2) -> Self {
+    pub fn new(radius: f32, color: Srgba, position: Point2, velocity: Point2) -> Self {
         Self {
             radius,
             color,
             position,
             hidden: false,
+            velocity,
         }
     }
 
@@ -25,10 +27,10 @@ impl Particle {
         // x, y, t
         F: Fn(f32, f32, f32) -> Point2,
     {
-        let velocity = arrow_function(self.position.x, self.position.y, app.time);
+        let acceleration = arrow_function(self.position.x, self.position.y, app.time);
         let dt = app.duration.since_prev_update.as_secs_f32() * TIME_SCALE;
-        let displacement = velocity * dt;
-        self.position += displacement;
+        self.velocity += acceleration * dt;
+        self.position += self.velocity * dt;
     }
 
     pub fn draw(&self, _app: &App, _model: &Model, draw: &Draw) {
