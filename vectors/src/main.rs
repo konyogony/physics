@@ -1,4 +1,3 @@
-use cgmath::{Angle, Deg};
 use nannou::{
     App, Frame,
     event::{Key, Update},
