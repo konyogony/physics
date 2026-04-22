@@ -32,7 +32,7 @@ jobs:
 
       - name: Build Quartz
         working-directory: blog
-        run: bun x quartz build
+        run: npx quartz build
 
       - name: Create CNAME
         run: echo "physics.konyogony.dev" > blog/public/CNAME
