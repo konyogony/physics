@@ -5,11 +5,16 @@
 // No std librarires are allowed here.
 
 use bytemuck::{Pod, Zeroable};
-use core::f32::consts::PI;
-use glam::{Vec3, Vec4, vec2, vec3};
-#[cfg(target_arch = "spirv")]
+use glam::{Vec2, Vec3, Vec4, Vec4Swizzles};
 use spirv_std::num_traits::Float;
 use spirv_std::spirv;
+
+const GRID_COLOR: Vec4 = Vec4::new(0.3, 0.3, 0.3, 0.05);
+const AXIS_COLOR: Vec4 = Vec4::new(1.0, 1.0, 1.0, 0.8);
+const HIGHLIGHT_COLOR: Vec4 = Vec4::new(0.0, 1.0, 1.0, 0.4);
+const THICKNESS: f32 = 0.5;
+const GRID_SPACING: f32 = 100.0;
+const HIGHLIGHT_SQUARES: i32 = 3;
 
 // These consstants are also defined inside of the rust code and passed in as a storage buffer.
 #[derive(Copy, Clone, Pod, Zeroable)]
@@ -17,34 +22,50 @@ use spirv_std::spirv;
 pub struct ShaderConstants {
     pub width: u32,
     pub height: u32,
+    pub aspect_ratio: f32,
     pub time: f32,
 }
 
 #[spirv(vertex)]
-pub fn main_vs(
-    // We get the input for vertex id, its constants?, and its position + color.
-    #[spirv(vertex_index)] vert_id: i32,
-    // This is the bind group that we have created, with the 0th index binding being our shader
-    // constants.
-    #[spirv(descriptor_set = 0, binding = 0, storage_buffer)] constants: &ShaderConstants,
-    #[spirv(position)] vtx_pos: &mut Vec4,
-    vtx_color: &mut Vec3,
-) {
-    let speed = 0.4;
-    // Just varying the position of the triangle with time
-    let time = constants.time * speed + vert_id as f32 * (2.0 * PI * 120.0 / 360.0);
-    let position = vec2(f32::sin(time), f32::cos(time));
+pub fn main_vs(#[spirv(vertex_index)] vert_id: i32, #[spirv(position)] vtx_pos: &mut Vec4) {
+    // fancy bitwise manipulations
+    let uv = Vec2::new(((vert_id << 1) & 2) as f32, (vert_id & 2) as f32);
+    // Mapping to the correct range
+    let pos = Vec2::new(uv.x * 2.0 - 1.0, uv.y * 2.0 - 1.0);
+    // Basically, we are covering the entire screen here.
+    *vtx_pos = pos.extend(0.0).extend(1.0);
+}
 
-    *vtx_pos = Vec4::from((position, 0.0, 1.0));
-    *vtx_color = [
-        vec3(1.0, 0.0, 0.0),
-        vec3(0.0, 1.0, 0.0),
-        vec3(0.0, 0.0, 1.0),
-    ][vert_id as usize % 3];
+#[repr(u32)]
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub enum Status {
+    GridLine,
+    AxisLine,
+    HighlightLine,
+    None,
 }
 
 #[spirv(fragment)]
-pub fn main_fs(vtx_color: Vec3, output: &mut Vec4) {
-    // Output on the fragment shader will be the vertex color w alpha of 1
-    *output = Vec4::from((vtx_color, 1.0));
+pub fn main_fs(
+    #[spirv(descriptor_set = 0, binding = 0, storage_buffer)] constants: &ShaderConstants,
+    #[spirv(frag_coord)] frag_coords: Vec4,
+    output: &mut Vec4,
+) {
+    let mut status = Status::None;
+
+    let uv = frag_coords / Vec4::new(constants.width as f32, constants.height as f32, 0.0, 0.0);
+    let centered_uv = uv - 0.5;
+
+    let grid = (centered_uv * GRID_SPACING).fract();
+
+    if (grid.x < THICKNESS && grid.x > -THICKNESS) || (grid.y < THICKNESS && grid.y > -THICKNESS) {
+        status = Status::AxisLine
+    }
+
+    *output = match status {
+        Status::GridLine => GRID_COLOR,
+        Status::AxisLine => AXIS_COLOR,
+        Status::HighlightLine => HIGHLIGHT_COLOR,
+        Status::None => Vec4::new(0.0, 0.0, 0.0, 1.0),
+    }
 }

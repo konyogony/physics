@@ -1,0 +1,54 @@
+name: Deploy Quartz site to GitHub Pages
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: "pages"
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Root Repo
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install Dependencies
+        working-directory: blog
+        run: bun install --frozen-lockfile
+
+      - name: Build Quartz
+        working-directory: blog
+        run: bun x quartz build
+
+      - name: Create CNAME file
+        run: echo "physics.konyogony.dev" > blog/public/CNAME
+
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: blog/public
+
+  deploy:
+    needs: build
+    environment:
+      name: github-pages
+      url: https://physics.konyogony.dev
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

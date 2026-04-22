@@ -102,6 +102,7 @@ impl State {
                             time: self.start.elapsed().as_secs_f32(),
                             width: render_target.texture().width(),
                             height: render_target.texture().height(),
+                            aspect_ratio: render_target.texture().width() as f32 / render_target.texture().height() as f32
                         },
                         render_target,
                     )

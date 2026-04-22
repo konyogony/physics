@@ -1,3 +1,0 @@
-[workspace]
-members = ["vectors", "gauss"]
-resolver = "2"

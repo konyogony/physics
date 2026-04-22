@@ -14,6 +14,13 @@ const HIHGLIGHT_DISTANCE: usize = 3;
 const ARROW_SCALING: f32 = 30.0;
 const MIN_ARROW_SCLAE: f32 = 0.7;
 const TIME_SCALE: f32 = 1.0;
+const FIELD_MODE: FieldMode = FieldMode::Acceleration;
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub enum FieldMode {
+    Acceleration,
+    Velocity,
+}
 
 pub mod grid;
 pub mod particle;
@@ -61,34 +68,31 @@ fn model_fn(app: &App) -> Model {
 }
 
 fn update_fn(app: &App, model: &mut Model, _update: Update) {
-    // if app.keys.down.contains(&Key::Equals) {
-    //     model.time_scale += 0.1;
-    //     model.last_key_press_pts = Some(app.time);
-    // }
-    // if app.keys.down.contains(&Key::Minus) {
-    //     model.time_scale -= 0.1;
-    //     model.last_key_press_pts = Some(app.time);
-    // }
-
+    // +/= increases the scale
     if app.keys.down.contains(&Key::Equals) {
         model.grid.line_distance += 1;
         model.last_key_press_pts = Some(app.time)
     }
 
+    // - increases the scale
     if app.keys.down.contains(&Key::Minus) {
         model.grid.line_distance -= 1;
         model.last_key_press_pts = Some(app.time)
     }
 
+    // </, increases the color value, which affects the color distribution shown in the arrows.
     if app.keys.down.contains(&Key::Period) && model.color_value < 1000.0 {
         model.color_value += 1.0;
         model.last_key_press_pts = Some(app.time);
     }
+
+    // >/. decreases the color value
     if app.keys.down.contains(&Key::Comma) && model.color_value > 1.0 {
         model.color_value -= 1.0;
         model.last_key_press_pts = Some(app.time);
     }
 
+    // Create a new particle with no veclocity at the mouse location when left clicked.
     if app.mouse.buttons.left().is_down() {
         let mouse_pos = pt2(app.mouse.x, app.mouse.y);
         let particle = Particle::new(
@@ -100,11 +104,13 @@ fn update_fn(app: &App, model: &mut Model, _update: Update) {
         model.particles.push(particle);
     }
 
+    // Spawn a grid of particles with 'P', however this really degrades the performance
     if app.keys.down.contains(&Key::P) {
         let mut particles = model.grid.init_grid_particles(app);
         model.particles.append(&mut particles);
     }
 
+    // Delete all the particles currently active.
     if app.keys.down.contains(&Key::C) {
         model.particles.clear();
     }
@@ -115,16 +121,21 @@ fn update_fn(app: &App, model: &mut Model, _update: Update) {
 }
 
 // Arrow function responsible for the vectors themselves at each point in space
-// Basically governs the velocity of the particle at any particular point in space-time
+// Basically governs the velocity/accelearation of the particle at any particular point in space-time
+// __only__ This function is usually AI generated.
 fn arrow_function(x: f32, y: f32, t: f32) -> Point2 {
-    let r = (x * x + y * y).sqrt() + 0.001;
+    let s = 0.007;
+    let ts = t * 0.4;
 
-    let angle = t * 0.5;
+    let m = ((x * s).cos() * (y * s).sin()).abs().powi(2);
+    let ax = (y * s + ts).sin() * m * 250.0;
+    let ay = (x * s - ts).cos() * m * 250.0;
 
-    let x_output = -y / r + 0.3 * angle.cos() * x;
-    let y_output = x / r + 0.3 * angle.sin() * y;
+    let dist = (x * x + y * y).sqrt() + 1.0;
+    let pull_strength = (dist * 0.0005).powi(2);
+    let home = pt2(-x, -y) * pull_strength.min(0.5);
 
-    pt2(x_output, y_output)
+    pt2(ax + home.x, ay + home.y)
 }
 
 // Responsible solely for rendering all the parts
