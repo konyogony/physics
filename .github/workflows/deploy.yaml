@@ -34,7 +34,7 @@ jobs:
         working-directory: blog
         run: bun x quartz build
 
-      - name: Create CNAME file
+      - name: Create CNAME
         run: echo "physics.konyogony.dev" > blog/public/CNAME
 
       - name: Upload artifact
