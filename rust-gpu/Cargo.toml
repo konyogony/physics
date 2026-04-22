@@ -1,0 +1,40 @@
+[workspace]
+members = ["app", "shaders"]
+resolver = "3"
+
+[workspace.package]
+version = "0.1.0"
+authors = ["konyogony <me@konyogony.dev>"]
+edition = "2024"
+license = "MIT"
+repository = ""
+
+[workspace.lints.rust]
+unexpected_cfgs = { level = "allow", check-cfg = [
+  'cfg(target_arch, values("spirv"))',
+] }
+
+[workspace.dependencies]
+# API
+wgpu = { version = "29.0.1", default-features = false, features = [
+  "std",
+  "parking_lot",
+  "vulkan",
+  "vulkan-portability",
+  "spirv",
+  "wgsl",
+] }
+pollster = "0.4.0"
+
+# rust-gpu
+# While `cargo-gpu` is backwards compatible with older rust-gpu versions, easiest is to just match the versions exactly.
+cargo-gpu-install = { git = "https://github.com/Rust-GPU/rust-gpu", rev = "8494942c0be705049514c2515761da7ef24fcbeb" }
+spirv-std = { git = "https://github.com/Rust-GPU/rust-gpu", rev = "8494942c0be705049514c2515761da7ef24fcbeb" }
+
+# other
+glam = { version = "0.32.0", default-features = false }
+bytemuck = { version = "1.24.0", features = ["derive"] }
+raw-window-handle = "0.6.2"
+winit = "0.30.0"
+env_logger = "0.11.8"
+anyhow = "1.0.98"
