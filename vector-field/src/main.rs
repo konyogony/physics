@@ -124,18 +124,29 @@ fn update_fn(app: &App, model: &mut Model, _update: Update) {
 // Basically governs the velocity/accelearation of the particle at any particular point in space-time
 // __only__ This function is usually AI generated.
 fn arrow_function(x: f32, y: f32, t: f32) -> Point2 {
-    let s = 0.007;
-    let ts = t * 0.4;
+    let s = 0.003; // Zoom level
+    let u = x * s;
+    let v = y * s;
 
-    let m = ((x * s).cos() * (y * s).sin()).abs().powi(2);
-    let ax = (y * s + ts).sin() * m * 250.0;
-    let ay = (x * s - ts).cos() * m * 250.0;
+    // 1. Phase Modulation
+    // By nesting trig functions (putting u inside v's sine), we completely destroy
+    // the boring grid patterns. This creates organic, unpredictable rivers
+    // and sharp topographical ridges.
+    let vx = (v + u.cos()).sin() - u.cos();
+    let vy = (u + v.sin()).cos() + v.sin();
 
-    let dist = (x * x + y * y).sqrt() + 1.0;
-    let pull_strength = (dist * 0.0005).powi(2);
-    let home = pt2(-x, -y) * pull_strength.min(0.5);
+    let vec = pt2(vx, vy);
 
-    pt2(ax + home.x, ay + home.y)
+    // 2. Self-Amplification (The Magic Trick)
+    // Instead of forcing an artificial speed mask, we scale the vector
+    // by its OWN squared length. This perfectly preserves the physical flow,
+    // while violently stretching the contrast.
+    let len_sq = vx * vx + vy * vy;
+
+    // Natural max length is ~2.8. len_sq is ~8.0.
+    // 2.8 * 8.0 * 40.0 = ~900 max length (Perfect Bright Red for c=200)
+    // Natural low length of 0.5 becomes 0.5 * 0.25 * 40.0 = 5 (Perfect Deep Blue)
+    vec * (len_sq * 40.0)
 }
 
 // Responsible solely for rendering all the parts
