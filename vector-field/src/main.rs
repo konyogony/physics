@@ -155,7 +155,7 @@ fn view_fn(app: &App, model: &Model, frame: Frame) {
     let draw = app.draw();
 
     model.grid.draw_grid(app, model, &draw);
-    model.grid.draw_vectors(app, model, &draw, arrow_function);
+    //model.grid.draw_vectors(app, model, &draw, arrow_function);
 
     let alpha = if let Some(last_press) = model.last_key_press_pts
         && (app.time - last_press) < 3.0
