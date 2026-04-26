@@ -1,33 +1,41 @@
 use crate::wgpu_renderer::bind_group::GlobalBindGroupLayout;
-use crate::wgpu_renderer::renderer_pipeline::RendererPipeline;
-use shaders::ShaderConstants;
+use crate::wgpu_renderer::pipelines::grid::GridPipeline;
+use crate::wgpu_renderer::pipelines::particle::ParticlePipeline;
+use shaders::particle::Particle;
+use shaders::shared::ShaderConstants;
 use wgpu::wgt::CommandEncoderDescriptor;
 use wgpu::{
-    Color, Device, LoadOp, Operations, Queue, RenderPassColorAttachment, RenderPassDescriptor,
-    StoreOp, TextureFormat, TextureView,
+    Color, ComputePassDescriptor, Device, LoadOp, Operations, Queue, RenderPassColorAttachment,
+    RenderPassDescriptor, StoreOp, TextureFormat, TextureView,
 };
 
 // This file is basically responsible for first of all
-
 // Renderer holds the device & queue + layout & pipeline, responsible for rendering
 pub struct Renderer {
     pub device: Device,
     pub queue: Queue,
+    // Basically responsible for ALL bind group layouts and the creation of bind groups themselves
     global_bind_group_layout: GlobalBindGroupLayout,
-    pipeline: RendererPipeline,
+    grid_pipeline: GridPipeline,
+    particle_pipeline: ParticlePipeline,
 }
 
 impl Renderer {
     pub fn new(device: Device, queue: Queue, out_format: TextureFormat) -> anyhow::Result<Self> {
-        // Create a "global" bind group layout
+        // Create all the bind groups first. Global bind group just refers to the one holding
+        // shader constants, hence global.
         let global_bind_group_layout = GlobalBindGroupLayout::new(&device);
-        // Create a new pipeline
-        let pipeline = RendererPipeline::new(&device, &global_bind_group_layout, out_format)?;
+
+        // Create all the pipelines that we will use
+        let grid_pipeline = GridPipeline::new(&device, &global_bind_group_layout, out_format)?;
+        let particle_pipeline =
+            ParticlePipeline::new(&device, &global_bind_group_layout, out_format)?;
 
         // Pass it in
         Ok(Self {
             global_bind_group_layout,
-            pipeline,
+            grid_pipeline,
+            particle_pipeline,
             device,
             queue,
         })
@@ -37,25 +45,38 @@ impl Renderer {
     // be converted into a storage buffer, as well as a TextureView acquired from
     // the swapchain
     pub fn render(
-        &self,
+        &mut self,
         shader_constants: &ShaderConstants,
         output: TextureView,
+        particles: &[Particle],
     ) -> anyhow::Result<()> {
         // Create a bind group by passing it the shader consnats
-        let global_bind_group = self
+        let bind_groups = self
             .global_bind_group_layout
-            .create_bind_group(&self.device, shader_constants);
+            // Fill the vec with particles for read & write (?)
+            .create_bind_groups(&self.device, shader_constants, particles);
 
         // Create a command encoder, responsible for drawing the stuff
-        let mut cmd = self
+        // Shared between both compute & render pass
+        let mut cmd_encoder = self
             .device
             .create_command_encoder(&CommandEncoderDescriptor {
-                label: Some("main_draw"),
+                label: Some("MainCMDEncoder"),
             });
 
-        // Create a render pass
-        let mut rpass = cmd.begin_render_pass(&RenderPassDescriptor {
-            label: Some("main_renderpass"),
+        // First we have to go through all the pipelies that have a compute pass
+        let mut cpass = cmd_encoder.begin_compute_pass(&ComputePassDescriptor {
+            label: Some("MainComputePass"),
+            timestamp_writes: None,
+        });
+        self.particle_pipeline
+            .compute(&mut cpass, &bind_groups, particles.len() as u32);
+        // Dont forget to drop after each pass
+        drop(cpass);
+
+        // After all the computer passes are done, create & call the rneder passes.
+        let mut rpass = cmd_encoder.begin_render_pass(&RenderPassDescriptor {
+            label: Some("MainRenderPass"),
             color_attachments: &[Some(RenderPassColorAttachment {
                 view: &output,
                 depth_slice: None,
@@ -71,12 +92,13 @@ impl Renderer {
             multiview_mask: None,
         });
         // Draw it using our pipeline we created.
-        self.pipeline.draw(&mut rpass, &global_bind_group);
-        // Drop so that memory is freed up.
+        self.grid_pipeline.draw(&mut rpass, &bind_groups);
+        self.particle_pipeline
+            .draw(&mut rpass, &bind_groups, particles.len() as u32);
         drop(rpass);
 
         // Submit once the completed draw call.
-        self.queue.submit(std::iter::once(cmd.finish()));
+        self.queue.submit(std::iter::once(cmd_encoder.finish()));
         Ok(())
     }
 }

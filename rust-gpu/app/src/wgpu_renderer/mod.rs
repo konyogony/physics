@@ -7,8 +7,10 @@ use winit::{
 };
 
 mod bind_group;
+mod mouse;
+mod particle_manager;
+mod pipelines;
 mod renderer;
-mod renderer_pipeline;
 mod state;
 mod swapchain;
 

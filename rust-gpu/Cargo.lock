@@ -144,6 +144,7 @@ dependencies = [
  "bytemuck",
  "cargo-gpu-install",
  "env_logger",
+ "glam",
  "pollster",
  "raw-window-handle",
  "shaders",

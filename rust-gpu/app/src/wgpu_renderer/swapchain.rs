@@ -68,7 +68,6 @@ impl<'a> SwapchainManager<'a> {
         self.window.inner_size()
     }
 
-    // Main rendering function.
     // Takes in a function that it can only be called once,
     // takes in a texture view (as a storage texture im guessing)
     pub fn render(

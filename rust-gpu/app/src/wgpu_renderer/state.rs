@@ -1,7 +1,9 @@
-use crate::wgpu_renderer::renderer::Renderer;
+use crate::wgpu_renderer::mouse::Mouse;
 use crate::wgpu_renderer::swapchain::SwapchainManager;
+use crate::wgpu_renderer::{particle_manager::ParticleManager, renderer::Renderer};
 use anyhow::Context;
-use shaders::ShaderConstants;
+use shaders::Particle;
+use shaders::shared::ShaderConstants;
 use std::sync::Arc;
 use std::time::Instant;
 use winit::{
@@ -15,9 +17,14 @@ use winit::{
 // State struct will be managing all the sub-processes
 pub struct State {
     start: Instant,
+    // We need last frame to calculate dt
+    last_frame: Instant,
+    is_full_screen: bool,
     window: Arc<Window>,
     renderer: Renderer,
     swapchain: SwapchainManager<'static>,
+    particle_manager: ParticleManager,
+    mouse: Mouse,
 }
 
 impl State {
@@ -43,7 +50,10 @@ impl State {
             wgpu::util::initialize_adapter_from_env_or_default(&instance, Some(&surface)).await?;
 
         // Small fast bits of memory that can be updated in a render pass
-        let required_features = wgpu::Features::IMMEDIATES;
+        // Vertex writable storage is required so that we can mutate a storage buffer and still use
+        // it in the vertex shader
+        let required_features =
+            wgpu::Features::IMMEDIATES | wgpu::Features::VERTEX_WRITABLE_STORAGE;
         let required_limits = wgpu::Limits {
             // Only 128 bits, shocker
             max_immediate_size: 128,
@@ -75,9 +85,26 @@ impl State {
         // Create a renderer
         let renderer = Renderer::new(device, queue, swapchain.get_format())?;
 
+        // Create a particle particle manager
+        let mut particle_manager = ParticleManager::new();
+        // Add 1 so that it aint empty initially
+        particle_manager.particles.push(Particle {
+            position: [1440.0 / 2.0, 2560.0 / 2.0],
+            velocity: [0.0; 2],
+            color: [1.0; 3],
+            _pad: 0.0,
+        });
+
+        // Create a mouse manager-ish
+        let mouse = Mouse::new();
+
         // Initialise the state
         Ok(Self {
             start: Instant::now(),
+            last_frame: Instant::now(),
+            is_full_screen: false,
+            particle_manager,
+            mouse,
             window,
             swapchain,
             renderer,
@@ -93,23 +120,35 @@ impl State {
     ) -> anyhow::Result<()> {
         match event {
             // So if a draw is requested
-            WindowEvent::RedrawRequested => {
-                // We call the render function, which will give us the view texture
-                self.swapchain.render(|render_target| {
-                    // Then we call the renderer and pass in all the params
-                    self.renderer.render(
-                        &ShaderConstants {
-                            time: self.start.elapsed().as_secs_f32(),
-                            width: render_target.texture().width(),
-                            height: render_target.texture().height(),
-                            aspect_ratio: render_target.texture().width() as f32 / render_target.texture().height() as f32
-                        },
-                        render_target,
-                    )
-                })?;
-                self.window.request_redraw();
+            WindowEvent::RedrawRequested => self.handle_redraw()?,
+            WindowEvent::CursorMoved { position, .. } => {
+                self.mouse
+                    .update_pos([position.x as f32, position.y as f32]);
             }
-            // Handle user key input, specfiically if its Escape thats pressed
+            WindowEvent::MouseInput { state, button, .. } => {
+                self.mouse.update_button(button, state);
+            }
+            WindowEvent::KeyboardInput {
+                event:
+                    KeyEvent {
+                        logical_key: Key::Named(NamedKey::F11),
+                        state: ElementState::Pressed,
+                        ..
+                    },
+                ..
+            } => {
+                match self.is_full_screen {
+                    true => self.window.set_fullscreen(None),
+                    false => {
+                        self.window
+                            .set_fullscreen(Some(winit::window::Fullscreen::Borderless(
+                                self.window.current_monitor(),
+                            )))
+                    }
+                }
+                self.is_full_screen = !self.is_full_screen
+            }
+            // ESC or CloseRequested exit the event loop
             WindowEvent::KeyboardInput {
                 event:
                     KeyEvent {
@@ -119,12 +158,48 @@ impl State {
                     },
                 ..
             }
-            // Or if directly requested to close, exit the loop
             | WindowEvent::CloseRequested => event_loop.exit(),
             // If a window is resized, we have to recreate the surface
             WindowEvent::Resized(_) => self.swapchain.set_should_recreate_true(),
             _ => (),
         }
+        Ok(())
+    }
+
+    pub fn handle_redraw(&mut self) -> anyhow::Result<()> {
+        if self.mouse.buttons_state.lmb == ElementState::Pressed {
+            self.particle_manager.create_particle(self.mouse.position);
+        }
+
+        if self.mouse.buttons_state.rmb == ElementState::Pressed {
+            self.particle_manager.remove_all_particles();
+        }
+
+        let dt = self.last_frame.elapsed().as_secs_f32();
+        // Update the last frame feild.
+        self.last_frame = Instant::now();
+
+        // We call the render function, which will give us the view texture
+        self.swapchain.render(|render_target| {
+            // Then we call the renderer and pass in all the params
+            self.renderer.render(
+                &ShaderConstants {
+                    // Pretty cool method to get current time in the application ngl
+                    time: self.start.elapsed().as_secs_f32(),
+                    dt,
+                    width: render_target.texture().width(),
+                    height: render_target.texture().height(),
+                    aspect_ratio: render_target.texture().width() as f32
+                        / render_target.texture().height() as f32,
+                    num_particles: self.particle_manager.particles.len() as u32,
+                    _pad: [0.0; 2],
+                },
+                render_target,
+                &self.particle_manager.particles,
+            )
+        })?;
+
+        self.window.request_redraw();
         Ok(())
     }
 }
