@@ -19,7 +19,7 @@ Each of these tiny fragments is basically a triangle, consisting of 3 vertices a
 These fragments are then rasterized to form pixels which are rendered onto your screen.
 
 <div class="svg-container">
-  <img src="./assets/fragment.svg" class="invert-on-light" alt="Field Diagram" />
+  <img src="./assets/fragment-dark.svg" class="invert-on-light" alt="Fragment, consisting of 3 vertices, bound by pixels." />
 </div>
 
 We can easily manipulate these fragments and vertices to produce complex shapes and colors using shaders. A shader in principle is just code that is run on the GPU.
@@ -47,7 +47,132 @@ where a scale was chosen centered around the origin. Here, there are multiple di
 In summary, inside the vertex shader we will be getting our **Clip Space** coordinates, doing calculations on them and outputting an **NDC**.
 Then, inside our fragment shader we will recieve **Screen Space**, which gets mapped to a color.
 
+## Data flow
+
+Now, lets talk about the data flow within our whole application. At the very begining, we first have to compile and convert the rust shader code into an `.spv` file.
+Aferwards, the main `wgpu` application is initailised. In the `main` function the `event_loop` and `State` is created. The `event_loop` is responsible for passing on events from the window to the application, such as draw calls and keyboard inputs. The `State` struct is responsible for retaining all the data in our application, it will hold all essential components that make up the system. Afterwards, we create a new window using `winit` which will act as our canvas. Now, on every draw/redraw call recieved from the event loop, we will call the `render.rs` first. This `renderer` is responsible for creating and orchistrating render passes. For each pass, render pipelines and bind groups are linked. A render pipleine outlines the configuration and the architecture of data that is being passed into the shaders, whie bind groups represent the data itself. Each bind group can hold multiple pieces of data, like a storage buffer, or a texture or really anything. After that, the vertex and fragment shaders do their job at compute position of vertices and the color of the fragments, which will give an output that we can present onto the window. Below is a detailed diagram outlining this very process.
+
+```mermaid
+flowchart TD
+    RG["rust-gpu"]     --> SPV["shader.spv"]
+    SPV                --> RP["RenderPipeline"]
+
+    WGPU["wgpu"]       --> MAIN["main"]
+    MAIN               --> EL["event_loop + State"]
+    EL                 --> WIN["window"]
+    EL                 --> RENDER["render call"]
+    RENDER             --> REND["renderer.rs · Render pass"]
+    REND               --> RPBG["RenderPipeline + Bind Groups"]
+    RP                 --> RPBG
+    RPBG               --> VSFS["VS + FS"]
+    VSFS               --> SC["swapchain"]
+    SC                 --> PRES["present onto screen"]
+    PRES               --> WIN
+```
+
+However, not to overload this page with extreme details, this is the only section where we will mention such a large hierarchy. In most cases, I will use simpler and more individual examples of problems that I had to solve and overcome, as well as interesting techniques used. However, it is still quite important to understand the general outline.
+
 ## Signed Distance Fields
 
-The previously mentioned case is a common example of a Signed Distance Field (SDF). An SDF works by calculating the distance from any point on the screen to an object, be it a line, a rectangle or a circle.
+The previously mentioned case of drawing a line from one point to the other is a common example of the use of a Signed Distance Field (SDF). An SDF works by calculating the distance from any point on the screen to an object, be it a line, a rectangle or a circle.
 This technique also extends into 3 dimensions, however this whole blog will mainly focus on working in 2D. Now, we will look at how a few common SDF's are derived, calculated and applied in my recreation.
+Lets take a look at the most simple example, a line segment. Imagine two points on a 2 dimensional grid, $A$ and $B$, which are connected by a line segment - denote this vector $\vec{AB}$.
+Now, take a random point $P$ somewhere around the line segment, as shown in the illustration.
+If a line of shortest distance (perpendicular to $\vec{AB}$) is drawn, the point at which it intersects with the original vector $\vec{AB}$ is labelled point $Q$.
+Hence, we can construct the vector $\vec{AP}$ as shown in the image.
+
+<div class="svg-container">
+  <img src="./assets/line-sdf-dark.svg" class="invert-on-light" alt="The line segment AB and derivation of the line SDF." />
+</div>
+
+After, we can label the distance from $A$ to $Q$ as $h$. By finding the ratio of $h$ we can determine how far we are along the vector $\vec{AB}$ we are, which will give us all the information we need to find $d$, the distance $\vec{PQ}$.
+We can actually get $h$ quite easily, by taking the dot product $\vec{AP} \cdot \vec{AB}$, we can get the scalar value that the vector $\vec{AP}$ aligns with $\vec{AB}$. After that, a normalisation has to be applied, yielding us:
+
+$$
+h = \frac{\vec{AB} \cdot \vec{AP}}{|\vec{AB}|^2}
+$$
+
+However, we can simplify the denominator even further by utilising the dot product of $\vec{AB}$ and itself.
+
+$$
+\begin{aligned}
+  |\vec{AB}|   &= \sqrt{x^2 + y^2} \\[4pt]
+  |\vec{AB}|^2 &= x^2 + y^2
+\end{aligned}
+\qquad\qquad
+\begin{aligned}
+  \vec{AB} \cdot \vec{AB} &= x \cdot x + y \cdot y \\[4pt]
+                          &= x^2 + y^2
+\end{aligned}
+$$
+
+This yields us the same result, however computationally taking the dot product is much faster than square roots. After we have acquired $h$, we can calculate the vector $\vec{PQ}$. And by taking the length of that vector, we acquire our final distance $d$.
+
+$$
+\begin{aligned}
+\vec{PQ} &= -\vec{AP} + h \cdot \vec{AB} \\
+d &= |\vec{PQ}|
+\end{aligned}
+$$
+
+When this mathematics is converted to rust, we can acquire the following function:
+
+```rs
+pub fn sdf_line(a_pos: Vec2, b_pos: Vec2, p_pos: Vec2) -> f32 {
+  let ab_vec = b_pos - a_pos;
+  let ap_vec = p_pos - a_pos;
+
+  // Make sure the denominator is not 0
+  let h = ab_vec.dot(ap_vec) / ab_vec.dot(ab_vec).max(0.001);
+  let h_clamped = h.clamp(0.0, 1.0);
+
+  (ap_vec - h_clamped * ab_vec).length()
+}
+```
+
+But how can we apply this SDF? After extracting the distance to a line, or some object, we can pass the distance and the thickness into the `antialias` function.
+This antialias function will use `smoothstep` to non-linearly increase the alpha value as distance get closer to the thickness. Then we use this alpha value to interpolate between a certain color. This way by calculating the distance from any object, we can get the correct alpha and hence color in any piel apropriately, giving us smooth blurred edges.
+
+## Creating the background grid
+
+Let us recreate the grid seen in the background using shaders now. Since this is going to be a background shader, we dont need to pass in many vertices to render on, we just have to cover the whole screen. This can be achieved by using bitwise manipulation to translate the vertices to the right position as shown here:
+
+```rs
+// A vertex shader entry point is created
+#[spirv(vertex(entry_point_name = "grid_vs"))]
+pub fn grid_vs(
+  // We accept current vertex id
+  #[spirv(vertex_index)] vert_id: i32,
+  // This is the parameter we have to modify and output, since 'mut'
+  #[spirv(position)] vtx_pos: &mut Vec4
+  ) {
+    // We use left logical shifts (<<) and bitmasking (&)
+    // to convert the vertices id's to appropriate UV coordinates.
+    // The output will be (0.0, 0.0), (2.0, 0.0), (0.0, 2.0)
+    // Which corresponds to top left, far right and far downwards.
+    let uv = Vec2::new(((vert_id << 1) & 2) as f32, (vert_id & 2) as f32);
+    // ...
+}
+```
+
+However, this is the **UV** coordinates, we have to convert them to **NDC** coordinate system. This can be achived by applying the following operation:
+
+```rs
+// (x*2 - 1, y*2 - 1)
+let pos = Vec2::new(uv.x * 2.0 - 1.0, uv.y * 2.0 - 1.0);
+// Since we need it to be a Vec4, we add the missing data.
+// And use a pointer to modify the output value.
+*vtx_pos = pos.extend(0.0).extend(1.0);
+```
+
+Now that we have a fragment to draw on, we can do draw the lines which will cover the entire screen.
+We have multiple lines to draw, the axis line (bright white lines along the origin), the grid lines (white lines repeating every N pixels) and highlight lines (colored lines repeating every N grid lines).
+This can be done using even sign distance fields.
+First, to draw the axis lines, if we have centered our coordinates before hands, we can directly use them to get the closest distance as shown here:
+
+```rs
+let axis_distance = px_x.abs().min(px_y.abs());
+let axis_alpha = antialias(axis_distance, GRID_THICKNESS_PX);
+```
+
+Afterwards, lets talk about
