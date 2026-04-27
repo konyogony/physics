@@ -13,8 +13,8 @@ const DEFAULT_RADIUS: f32 = 5.0;
 const HIHGLIGHT_DISTANCE: usize = 3;
 const ARROW_SCALING: f32 = 30.0;
 const MIN_ARROW_SCLAE: f32 = 0.7;
-const TIME_SCALE: f32 = 1.0;
-const FIELD_MODE: FieldMode = FieldMode::Acceleration;
+const TIME_SCALE: f32 = 20.0;
+const FIELD_MODE: FieldMode = FieldMode::Velocity;
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub enum FieldMode {
@@ -124,29 +124,25 @@ fn update_fn(app: &App, model: &mut Model, _update: Update) {
 // Basically governs the velocity/accelearation of the particle at any particular point in space-time
 // __only__ This function is usually AI generated.
 fn arrow_function(x: f32, y: f32, t: f32) -> Point2 {
-    let s = 0.003; // Zoom level
-    let u = x * s;
-    let v = y * s;
+    // Adjust scale: lower = zoomed out (more detail), higher = zoomed in
+    let p = Point2::new(x, y) * 0.005;
+    let time = t * 0.4;
 
-    // 1. Phase Modulation
-    // By nesting trig functions (putting u inside v's sine), we completely destroy
-    // the boring grid patterns. This creates organic, unpredictable rivers
-    // and sharp topographical ridges.
-    let vx = (v + u.cos()).sin() - u.cos();
-    let vy = (u + v.sin()).cos() + v.sin();
+    // Layer 1: Large scale swirls
+    let mut vx = (p.y + time).cos() + (p.y * 0.5 + time * 0.6).cos();
+    let mut vy = (p.x - time).sin() + (p.x * 0.4 - time * 0.8).sin();
 
-    let vec = pt2(vx, vy);
+    // Layer 2: Medium scale turbulence (The "Curl")
+    // We add a rotation based on the sine of the opposite axis
+    let angle = (p.x * 1.2 + time).sin() * (p.y * 1.2 - time).cos();
+    vx += angle.cos() * 0.5;
+    vy += angle.sin() * 0.5;
 
-    // 2. Self-Amplification (The Magic Trick)
-    // Instead of forcing an artificial speed mask, we scale the vector
-    // by its OWN squared length. This perfectly preserves the physical flow,
-    // while violently stretching the contrast.
-    let len_sq = vx * vx + vy * vy;
+    // Layer 3: Small scale jitter
+    vx += (p.x * 3.0 + p.y * 2.0 + time * 2.0).sin() * 0.2;
+    vy += (p.y * 3.0 - p.x * 2.0 - time * 2.0).cos() * 0.2;
 
-    // Natural max length is ~2.8. len_sq is ~8.0.
-    // 2.8 * 8.0 * 40.0 = ~900 max length (Perfect Bright Red for c=200)
-    // Natural low length of 0.5 becomes 0.5 * 0.25 * 40.0 = 5 (Perfect Deep Blue)
-    vec * (len_sq * 40.0)
+    Point2::new(vx, vy)
 }
 
 // Responsible solely for rendering all the parts

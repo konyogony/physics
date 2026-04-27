@@ -1,11 +1,9 @@
 // Seperate shader for the particles
 #![allow(clippy::too_many_arguments)]
 
-use core::f32::consts::PI;
-
-use crate::grid::arrow_fn;
-use crate::shared::ShaderConstants;
+use crate::shared::{ShaderConstants, arrow_fn};
 use bytemuck::{Pod, Zeroable};
+use core::f32::consts::PI;
 use glam::{UVec3, Vec2, Vec3, Vec4};
 #[allow(unused_imports)]
 use spirv_std::num_traits::Float;
@@ -21,7 +19,7 @@ pub struct Particle {
 }
 
 pub const TIME_SCALE: f32 = 20.0;
-pub const MAX_PARTICLES: u32 = 2000;
+pub const MAX_PARTICLES: u32 = 262144;
 pub const PARTICLE_RADIUS: f32 = 10.0;
 pub const POLYGON_VERTICES: u32 = 48;
 
@@ -90,12 +88,13 @@ pub fn particle_cs(
     // Do math only if its within the range of particles that actually exist
     if particle_index < constants.num_particles as usize {
         let mut particle = input[particle_index];
+        let px_x = particle.position[0] - constants.width as f32 / 2.0;
+        let px_y = -(particle.position[1] - constants.height as f32 / 2.0);
         // Calculate the velocity of the particle at its specific point in space & time.
-        let velocity = arrow_fn(particle.position[0], particle.position[1], constants.time);
+        let velocity = arrow_fn(px_x, px_y, constants.time);
 
         // Apply that velocity
         particle.position[0] += velocity.x * constants.dt * TIME_SCALE;
-        // FLIP THE Y VALUE!
         particle.position[1] -= velocity.y * constants.dt * TIME_SCALE;
 
         // Not to lose data, we create mut var, and we assign whole particle to the output.

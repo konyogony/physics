@@ -4,6 +4,20 @@ use spirv_std::arch::Derivative;
 #[allow(unused_imports)]
 use spirv_std::num_traits::Float;
 
+// AI Generated function for testing
+pub fn arrow_fn(x: f32, y: f32, t: f32) -> Vec2 {
+    let p = Vec2::new(x, y) * 0.005;
+    let time = t * 0.4;
+    let mut vx = (p.y + time).cos() + (p.y * 0.5 + time * 0.6).cos();
+    let mut vy = (p.x - time).sin() + (p.x * 0.4 - time * 0.8).sin();
+    let angle = (p.x * 1.2 + time).sin() * (p.y * 1.2 - time).cos();
+    vx += angle.cos() * 0.5;
+    vy += angle.sin() * 0.5;
+    vx += (p.x * 3.0 + p.y * 2.0 + time * 2.0).sin() * 0.2;
+    vy += (p.y * 3.0 - p.x * 2.0 - time * 2.0).cos() * 0.2;
+    Vec2::new(vx, vy)
+}
+
 // These consstants are also defined inside of the rust code and passed in as a storage buffer.
 #[derive(Copy, Clone, Pod, Zeroable)]
 #[repr(C)]

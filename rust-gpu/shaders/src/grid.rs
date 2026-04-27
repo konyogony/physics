@@ -3,7 +3,7 @@
 // No std librarires are allowed here.
 
 use crate::shared::{
-    SDF, ShaderConstants, antialias, antialias_no_fwidth, hsv, map_range, smoothstep,
+    SDF, ShaderConstants, antialias, antialias_no_fwidth, arrow_fn, hsv, map_range, smoothstep,
 };
 use glam::{Vec2, Vec4, Vec4Swizzles};
 #[allow(unused_imports)]
@@ -16,7 +16,7 @@ const AXIS_COLOR: Vec4 = Vec4::new(1.0, 1.0, 1.0, 0.8);
 const BG_COLOR: Vec4 = Vec4::new(0.0, 0.0, 0.0, 1.0);
 const HIGHLIGHT_COLOR: Vec4 = Vec4::new(0.0, 1.0, 1.0, 0.4);
 const GRID_THICKNESS_PX: f32 = 1.0;
-const GRID_SPACING_PX: f32 = 30.0;
+const GRID_SPACING_PX: f32 = 0.1;
 const ARROW_THICKNESS_PX: f32 = 1.0;
 const ARROW_HEAD_WIDTH_PX: f32 = 4.0;
 const ARROW_HEAD_HEIGHT_PX: f32 = 10.0;
@@ -33,14 +33,6 @@ pub fn grid_vs(#[spirv(vertex_index)] vert_id: i32, #[spirv(position)] vtx_pos: 
     let pos = Vec2::new(uv.x * 2.0 - 1.0, uv.y * 2.0 - 1.0);
     // Basically, we are covering the entire screen here.
     *vtx_pos = pos.extend(0.0).extend(1.0);
-}
-
-// AI Generated function for testing
-pub fn arrow_fn(x: f32, y: f32, t: f32) -> Vec2 {
-    let p = Vec2::new(x, y) * 0.006;
-    let vx = (p.y * 4.0 + t).cos() + (p.x + p.y + t * 0.5).sin();
-    let vy = (p.x * 4.0 - t).sin() + (p.x - p.y - t * 0.8).cos();
-    Vec2::new(vx, vy)
 }
 
 #[spirv(fragment(entry_point_name = "grid_fs"))]
