@@ -6,7 +6,7 @@ use core::f32::consts::PI;
 use crate::grid::arrow_fn;
 use crate::shared::ShaderConstants;
 use bytemuck::{Pod, Zeroable};
-use glam::{UVec3, Vec2, Vec4};
+use glam::{UVec3, Vec2, Vec3, Vec4};
 #[allow(unused_imports)]
 use spirv_std::num_traits::Float;
 use spirv_std::spirv;
@@ -20,6 +20,8 @@ pub struct Particle {
     pub _pad: f32,
 }
 
+pub const TIME_SCALE: f32 = 20.0;
+pub const MAX_PARTICLES: u32 = 2000;
 pub const PARTICLE_RADIUS: f32 = 10.0;
 pub const POLYGON_VERTICES: u32 = 48;
 
@@ -34,7 +36,8 @@ pub fn particle_vs(
     #[spirv(instance_index)] instance_id: i32,
     #[spirv(position)] vtx_pos: &mut Vec4,
     #[spirv(descriptor_set = 0, binding = 0, storage_buffer)] constants: &ShaderConstants,
-    #[spirv(descriptor_set = 1, binding = 1, storage_buffer)] particles: &[Particle],
+    #[spirv(descriptor_set = 1, binding = 0, storage_buffer)] particles: &[Particle],
+    #[spirv(location = 0)] vtx_color: &mut Vec3,
 ) {
     // Extract which particle we are doing based on group index
     let particle = particles[instance_id as usize];
@@ -66,11 +69,12 @@ pub fn particle_vs(
 
     // Apply the position
     *vtx_pos = pos_uv.extend(0.0).extend(1.0);
+    *vtx_color = particle.color.into();
 }
 
 #[spirv(fragment(entry_point_name = "particle_fs"))]
-pub fn particle_fs(output: &mut Vec4) {
-    *output = Vec4::new(1.0, 0.0, 0.0, 1.0);
+pub fn particle_fs(#[spirv(location = 0)] vtx_color: Vec3, output: &mut Vec4) {
+    *output = vtx_color.extend(1.0);
 }
 
 #[spirv(compute(threads(256), entry_point_name = "particle_cs"))]
@@ -85,14 +89,17 @@ pub fn particle_cs(
     let particle_index = global_invocation_id.x as usize;
     // Do math only if its within the range of particles that actually exist
     if particle_index < constants.num_particles as usize {
-        let particle = input[particle_index];
-        let pos = particle.position;
+        let mut particle = input[particle_index];
         // Calculate the velocity of the particle at its specific point in space & time.
-        let velocity = arrow_fn(pos[0], pos[1], constants.time);
+        let velocity = arrow_fn(particle.position[0], particle.position[1], constants.time);
 
         // Apply that velocity
-        output[particle_index].position[0] += velocity.x * constants.dt;
-        output[particle_index].position[1] += velocity.y * constants.dt;
+        particle.position[0] += velocity.x * constants.dt * TIME_SCALE;
+        // FLIP THE Y VALUE!
+        particle.position[1] -= velocity.y * constants.dt * TIME_SCALE;
+
+        // Not to lose data, we create mut var, and we assign whole particle to the output.
+        output[particle_index] = particle;
     }
 }
 

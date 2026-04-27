@@ -1,7 +1,7 @@
 use crate::wgpu_renderer::bind_group::GlobalBindGroupLayout;
+use crate::wgpu_renderer::particle_manager::ParticleManager;
 use crate::wgpu_renderer::pipelines::grid::GridPipeline;
 use crate::wgpu_renderer::pipelines::particle::ParticlePipeline;
-use shaders::particle::Particle;
 use shaders::shared::ShaderConstants;
 use wgpu::wgt::CommandEncoderDescriptor;
 use wgpu::{
@@ -18,6 +18,7 @@ pub struct Renderer {
     global_bind_group_layout: GlobalBindGroupLayout,
     grid_pipeline: GridPipeline,
     particle_pipeline: ParticlePipeline,
+    pub particle_manager: ParticleManager,
 }
 
 impl Renderer {
@@ -28,14 +29,19 @@ impl Renderer {
 
         // Create all the pipelines that we will use
         let grid_pipeline = GridPipeline::new(&device, &global_bind_group_layout, out_format)?;
+
         let particle_pipeline =
             ParticlePipeline::new(&device, &global_bind_group_layout, out_format)?;
+
+        // Responsible for persistant buffers, storing count, etc..
+        let particle_manager = ParticleManager::new(&device, &global_bind_group_layout);
 
         // Pass it in
         Ok(Self {
             global_bind_group_layout,
             grid_pipeline,
             particle_pipeline,
+            particle_manager,
             device,
             queue,
         })
@@ -48,13 +54,16 @@ impl Renderer {
         &mut self,
         shader_constants: &ShaderConstants,
         output: TextureView,
-        particles: &[Particle],
     ) -> anyhow::Result<()> {
         // Create a bind group by passing it the shader consnats
-        let bind_groups = self
+        // TODO: Make this not re-create itself 1000 times.
+        let constant_buffer = self
             .global_bind_group_layout
-            // Fill the vec with particles for read & write (?)
-            .create_bind_groups(&self.device, shader_constants, particles);
+            .create_constant_buffers(&self.device, shader_constants);
+
+        let constant_bind_groups = self
+            .global_bind_group_layout
+            .create_constant_bind_groups(&self.device, &constant_buffer);
 
         // Create a command encoder, responsible for drawing the stuff
         // Shared between both compute & render pass
@@ -69,8 +78,12 @@ impl Renderer {
             label: Some("MainComputePass"),
             timestamp_writes: None,
         });
-        self.particle_pipeline
-            .compute(&mut cpass, &bind_groups, particles.len() as u32);
+        self.particle_pipeline.compute(
+            &mut cpass,
+            &constant_bind_groups,
+            &self.particle_manager.particle_bind_groups,
+            self.particle_manager.current_num_of_particles,
+        );
         // Dont forget to drop after each pass
         drop(cpass);
 
@@ -91,10 +104,15 @@ impl Renderer {
             occlusion_query_set: None,
             multiview_mask: None,
         });
+
         // Draw it using our pipeline we created.
-        self.grid_pipeline.draw(&mut rpass, &bind_groups);
-        self.particle_pipeline
-            .draw(&mut rpass, &bind_groups, particles.len() as u32);
+        self.grid_pipeline.draw(&mut rpass, &constant_bind_groups);
+        self.particle_pipeline.draw(
+            &mut rpass,
+            &constant_bind_groups,
+            &self.particle_manager.particle_bind_groups,
+            self.particle_manager.current_num_of_particles,
+        );
         drop(rpass);
 
         // Submit once the completed draw call.

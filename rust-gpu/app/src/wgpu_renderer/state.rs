@@ -1,8 +1,7 @@
 use crate::wgpu_renderer::mouse::Mouse;
+use crate::wgpu_renderer::renderer::Renderer;
 use crate::wgpu_renderer::swapchain::SwapchainManager;
-use crate::wgpu_renderer::{particle_manager::ParticleManager, renderer::Renderer};
 use anyhow::Context;
-use shaders::Particle;
 use shaders::shared::ShaderConstants;
 use std::sync::Arc;
 use std::time::Instant;
@@ -23,7 +22,6 @@ pub struct State {
     window: Arc<Window>,
     renderer: Renderer,
     swapchain: SwapchainManager<'static>,
-    particle_manager: ParticleManager,
     mouse: Mouse,
 }
 
@@ -85,16 +83,6 @@ impl State {
         // Create a renderer
         let renderer = Renderer::new(device, queue, swapchain.get_format())?;
 
-        // Create a particle particle manager
-        let mut particle_manager = ParticleManager::new();
-        // Add 1 so that it aint empty initially
-        particle_manager.particles.push(Particle {
-            position: [1440.0 / 2.0, 2560.0 / 2.0],
-            velocity: [0.0; 2],
-            color: [1.0; 3],
-            _pad: 0.0,
-        });
-
         // Create a mouse manager-ish
         let mouse = Mouse::new();
 
@@ -103,7 +91,6 @@ impl State {
             start: Instant::now(),
             last_frame: Instant::now(),
             is_full_screen: false,
-            particle_manager,
             mouse,
             window,
             swapchain,
@@ -168,11 +155,13 @@ impl State {
 
     pub fn handle_redraw(&mut self) -> anyhow::Result<()> {
         if self.mouse.buttons_state.lmb == ElementState::Pressed {
-            self.particle_manager.create_particle(self.mouse.position);
+            self.renderer
+                .particle_manager
+                .add_particle(&self.renderer.queue, self.mouse.position);
         }
 
         if self.mouse.buttons_state.rmb == ElementState::Pressed {
-            self.particle_manager.remove_all_particles();
+            self.renderer.particle_manager.remove_all_particles();
         }
 
         let dt = self.last_frame.elapsed().as_secs_f32();
@@ -191,11 +180,10 @@ impl State {
                     height: render_target.texture().height(),
                     aspect_ratio: render_target.texture().width() as f32
                         / render_target.texture().height() as f32,
-                    num_particles: self.particle_manager.particles.len() as u32,
+                    num_particles: self.renderer.particle_manager.current_num_of_particles,
                     _pad: [0.0; 2],
                 },
                 render_target,
-                &self.particle_manager.particles,
             )
         })?;
 

@@ -1,4 +1,6 @@
-use crate::wgpu_renderer::bind_group::{GlobalBindGroup, GlobalBindGroupLayout};
+use crate::wgpu_renderer::bind_group::{
+    ConstantsBindGroups, GlobalBindGroupLayout, ParticleBindGroups,
+};
 use shaders::POLYGON_VERTICES;
 use shaders::shared::ShaderConstants;
 use wgpu::{
@@ -98,20 +100,22 @@ impl ParticlePipeline {
         })
     }
 
+    // Instead of passing in a global bind group -> pass in individual bind groups
     pub fn draw(
         &self,
         rpass: &mut RenderPass<'_>,
-        global_bind_group: &GlobalBindGroup,
+        constants_bind_groups: &ConstantsBindGroups,
+        particle_bind_groups: &ParticleBindGroups,
         num_particles: u32,
     ) {
         rpass.set_pipeline(&self.render_pipeline);
-        rpass.set_bind_group(0, &global_bind_group.constants, &[]);
+        rpass.set_bind_group(0, &constants_bind_groups.constants, &[]);
 
         // Use the correct bind group when rendering.
         if self.out_is_buffer_a {
-            rpass.set_bind_group(1, &global_bind_group.particles_render_ab, &[]);
+            rpass.set_bind_group(1, &particle_bind_groups.particles_render_a, &[]);
         } else {
-            rpass.set_bind_group(1, &global_bind_group.particles_render_ba, &[]);
+            rpass.set_bind_group(1, &particle_bind_groups.particles_render_b, &[]);
         }
 
         // For now we draw N number of particles, where each one consists of 6 vertices
@@ -121,16 +125,17 @@ impl ParticlePipeline {
     pub fn compute(
         &mut self,
         cpass: &mut ComputePass<'_>,
-        global_bind_group: &GlobalBindGroup,
+        constants_bind_groups: &ConstantsBindGroups,
+        particle_bind_groups: &ParticleBindGroups,
         num_particles: u32,
     ) {
         cpass.set_pipeline(&self.compute_pipeline);
-        cpass.set_bind_group(0, &global_bind_group.constants, &[]);
+        cpass.set_bind_group(0, &constants_bind_groups.constants, &[]);
 
         if self.out_is_buffer_a {
-            cpass.set_bind_group(1, &global_bind_group.particles_compute_ab, &[]);
+            cpass.set_bind_group(1, &particle_bind_groups.particles_compute_ab, &[]);
         } else {
-            cpass.set_bind_group(1, &global_bind_group.particles_compute_ba, &[]);
+            cpass.set_bind_group(1, &particle_bind_groups.particles_compute_ba, &[]);
         }
 
         cpass.dispatch_workgroups(num_particles.div_ceil(256), 1, 1);

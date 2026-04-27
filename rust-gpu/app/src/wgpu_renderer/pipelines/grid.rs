@@ -1,4 +1,4 @@
-use crate::wgpu_renderer::bind_group::{GlobalBindGroup, GlobalBindGroupLayout};
+use crate::wgpu_renderer::bind_group::{ConstantsBindGroups, GlobalBindGroupLayout};
 use shaders::shared::ShaderConstants;
 use wgpu::{
     ColorTargetState, ColorWrites, Device, FragmentState, FrontFace, MultisampleState,
@@ -73,11 +73,11 @@ impl GridPipeline {
     }
 
     // Draw call
-    pub fn draw(&self, rpass: &mut RenderPass<'_>, global_bind_group: &GlobalBindGroup) {
+    pub fn draw(&self, rpass: &mut RenderPass<'_>, constants_bind_groups: &ConstantsBindGroups) {
         // First set the pipeline that we have created
         rpass.set_pipeline(&self.render_pipeline);
         // Pass in the bind groups
-        rpass.set_bind_group(0, &global_bind_group.constants, &[]);
+        rpass.set_bind_group(0, &constants_bind_groups.constants, &[]);
         // Since we are just looking to cover whole screen, make 3 vertices, 1 draw pass.
         rpass.draw(0..3, 0..1);
     }
