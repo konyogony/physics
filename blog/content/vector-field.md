@@ -24,15 +24,15 @@ $$
 $$
 
 and some simple examples of electric effects.
-However, before we I dove into potentials and the Coulombs law, the concept of vector fields and vector calculus had to be explored.
-Chapters 2 \& 3 have some great concepts of vector calculus. This includes the use of the Nabla ($\vec{\nabla}$) operator to acquire the gradient, diverge or curl of a field.
+However, before I dove into potentials and the Coulombs law, the concept of vector fields and vector calculus had to be explored.
+Chapters 2 \& 3 have some great concepts of vector calculus. This includes the use of the Nabla ($\vec{\nabla}$) operator to acquire the gradient, divergence or curl of a field.
 In addition, these chapters have covered important concepts such as flux, circulation and important characteristics of vectors.
 Let me begin by summarising my findings and important concepts learnt in this chapter, in a way that is easier to understand.
 
 # Nabla and its operations
 
 First of all, what is a field? Well, a field is a representation of how values change as you move through space.
-Fields can consists of either vectors or a scalars, where at each point in space.
+Fields can consist of either vectors or scalars, where at each point in space.
 An example of a scalar field would be the temperature change, while a vector field could be for example the heat flow.
 
 <div class="svg-container">
@@ -60,7 +60,7 @@ $$
 Now, lets talk about the two of most important concepts of this operator, the divergence and the curl.
 These operators can be applied onto vector fields only.
 The divergence is a scalar value that will tell us whether the current point is a source or a sink, in most real-life applications, matter and energy is conserved,
-therefore the divergence would likely by 0. The curl on the other hand is a vector value, which tells us how much the field is literally curling.
+therefore the divergence would likely be 0. The curl on the other hand is a vector value, which tells us how much the field is literally curling.
 
 $$
 \begin{aligned}
@@ -167,9 +167,9 @@ Therefore, I have chosen to make a simple vector field visualiser, where we have
 My previous project involving physics and computer science was building a real-time ocean simulation in Rust by following the Tessendorf's model,
 therefore I wanted to ground myself this time, and went with a simpler library, nannou. Although nannou is still based on wgpu, as the ocean, it provides a simple API to manipulate the scene on the CPU.
 
-I have learnt my mistakes from previous projets and wanted to make sure each component of my project is modularized, where a singe struct is responsible for a single thing.
+I have learnt my mistakes from previous projects and wanted to make sure each component of my project is modularized, where a single struct is responsible for a single thing.
 Nannou works by having 3 main functions, `model`, `view` and `update`.
-`Model` is responsible for initialising the window, initialising all the varialbes and assigning the view function for rendering. The `view` function is, as the name suggests, a function responsible for drawing objects
+`Model` is responsible for initialising the window, initialising all the variables and assigning the view function for rendering. The `view` function is, as the name suggests, a function responsible for drawing objects
 onto a frame. Meanwhile, the `update` function is called every draw call, which mutates the `Model` struct and progresses the simulation. One of the benefits of nannou that I found really convenient is how much
 the application exposes, such as the simulation time, keyboard and mouse inputs, as well as having a really simple interface for drawing any object to the screen.
 
@@ -188,7 +188,7 @@ draw.line()
     .weight(1.5);
 ```
 
-After the main axis are created, the main grid pattern can be generted, this is done by a simple for loop where a certain step is taken each time starting from the origin and stretching until the limit is reached.
+After the main axis are created, the main grid pattern can be generated, this is done by a simple for loop where a certain step is taken each time starting from the origin and stretching until the limit is reached.
 In addition to normal grid lines, I wanted to implement highlighted grid lines, being inspired by 3Blue1Brown, which appear every `self.highlight_distance` amount of squares.
 
 ```rs
@@ -220,7 +220,7 @@ for i in (self.line_distance..(max_x as usize)).step_by(self.line_distance) {
 }
 ```
 
-If these two operations are mirrored for y and x axis respectivly, then a consistant grid is generated, as shown here.
+If these two operations are mirrored for y and x axis respectively, then a consistent grid is generated, as shown here.
 
 <div class="img-container">
   <img src="./assets/base-grid.webp" alt="Base Grid" />
@@ -229,7 +229,7 @@ If these two operations are mirrored for y and x axis respectivly, then a consis
 ## Vector Arrows
 
 Now that the grid is generated, I wanted to draw vector at each intersection of the grid lines. For that, I will use the provided `draw.arrow()` function, which handles all complex rendering for me.
-But, how does the vector know where the arrow should point? Ah! Well, I will have a `draw_vectors` function, responsible for itterating across each vertex, and theoretically I could hardcode a function that will
+But, how does the vector know where the arrow should point? Ah! Well, I will have a `draw_vectors` function, responsible for iterating across each vertex, and theoretically I could hardcode a function that will
 map coordinates $(x, y)$ onto a different position in space. This will indeed yield in a vector field, where at each point in space, an arrow is generated pointing the right direction. However, this can quickly
 get cluttered easily, therefore I am switching to generics. Generics in Rust allow me to pass in a function `F: Fn(f32, f32) -> Point2`, which accepts the coordinates and outputs a vector (Point2 is closely related to Vec2, or in other words a 2 dimensional vector).
 This allows me to move the `arrow_function`, which will determine how the field behaves, anywhere in the program, and just pass it in when needed.
@@ -262,7 +262,7 @@ for x in (start_x..max_x as i32).step_by(self.line_distance) {
 }
 ```
 
-In the future, this can be adapated to accept plain text inputs from
+In the future, this can be adapted to accept plain text inputs from
 the user. This already will generate the following result.
 
 <div class="img-container">
@@ -284,10 +284,10 @@ $$
 \left( \text{strength} \right) = \frac{|\vec{v}|}{|\vec{v}| + c_v}
 $$
 
-where $c_v$ is a special constan which defines the range of colors available. Afterwards we apply the `smoothstep` function, commonly seen in shaders,
-to boost the contrast and make the transition look sharper by applying a special curve to the value. Afterwards, teh value is clamped
+where $c_v$ is a special constant which defines the range of colors available. Afterwards we apply the `smoothstep` function, commonly seen in shaders,
+to boost the contrast and make the transition look sharper by applying a special curve to the value. Afterwards, the value is clamped
 between the minimum arrow scale and 1.0. After this is done, we can generate the color itself by using the `map_range` function in
-addition to the `hsv` function, giving us this buetiful heatmap.
+addition to the `hsv` function, giving us this beautiful heatmap.
 
 ```rs
 let len = vec.length();
@@ -299,7 +299,7 @@ let hue = map_range(t, 0.0, 1.0, 0.6, 0.0);
 let color = hsv(hue, 0.8, 0.9);
 ```
 
-this gives us the following arrows on the grid where each one has a magnitude of 1 and an appropriate color scale indication the real magnitude.
+this gives us the following arrows on the grid where each one has a magnitude of 1 and an appropriate color scale indicating the real magnitude.
 
 <div class="img-container">
   <img src="./assets/vector-field-good.webp" alt="Vector Field Looking Good" />
@@ -314,7 +314,7 @@ This allows to dynamically add and remove the particles. Now, in the `update` fu
 if the left mouse button is pressed. If it is, then extract current location and insert a new particle into the `vec`, as shown here.
 
 ```rs
-// Create a new particle with no veclocity at the mouse location when left clicked.
+// Create a new particle with no velocity at the mouse location when left clicked.
 if app.mouse.buttons.left().is_down() {
     let mouse_pos = pt2(app.mouse.x, app.mouse.y);
     let particle = Particle::new(
@@ -327,7 +327,7 @@ if app.mouse.buttons.left().is_down() {
 }
 ```
 
-This creates a stationary particle at the position of the mouse, however this doesnt display it. For that purpose,
+This creates a stationary particle at the position of the mouse, however this doesn't display it. For that purpose,
 inside the draw function, we loop through the whole `vec`, and for each particle we call its draw method. This draw method
 just creates an ellipse at the specified location with correct parameters. Now, to make the particle actually move, we have
 to update its position. A new `update` method will be created for the particle, which takes in the same `arrow_function` generic
@@ -336,8 +336,8 @@ This velocity is then multiplied by the `dt`, the small time step in time (which
 which can then be applied directly on the position of the particle. This method is then called for each particle inside
 the _main_ `update` function.
 
-However, there has to be made a distincation between velocity and acceleration field. For the velocity field, the `arrow_function` tells
-us directly the velocity of the particle, whereas in an acceleration field, the velocity is cummulative and has to be updated, by adding
+However, there has to be made a distinction between velocity and acceleration field. For the velocity field, the `arrow_function` tells
+us directly the velocity of the particle, whereas in an acceleration field, the velocity is cumulative and has to be updated, by adding
 on `acceleration * dt`, where the acceleration is acquired from the same `arrow_function`. The final update method is as shown here.
 
 ```rs
@@ -349,7 +349,7 @@ where
     let dt = app.duration.since_prev_update.as_secs_f32() * TIME_SCALE;
     // Added a switch between acceleration / velocity field.
     if FIELD_MODE == FieldMode::Acceleration {
-        // Velocity is cummulative and differs by the acceleration
+        // Velocity is cumulative and differs by the acceleration
         let acceleration = arrow_function(self.position.x, self.position.y, app.time);
         self.velocity += acceleration * dt;
         self.position += self.velocity * dt;
@@ -396,12 +396,12 @@ making more interesting and complex visualisations. Here is a set of videos, sho
 The mathematics of vector fields are really interesting, and the derivations of all the characteristics are quite intuitive.
 I am looking forward to making more different visualisers and simulations that can prove various theories, like the Gauss theorem.
 However, so far all the computations have been done on the CPU, which as seen in the videos, when many particles are created (for example, in a grid)
-the FPS drop is huge and the simulation becomes unusuable.
-This is because we are not utilsing the power of shaders parallelsism on the GPU threads.
-This immensly limits the ammount of computations that can be done, and although nannou _does_ expose the plain wgpu API, allowing for shaders and such,
+the FPS drop is huge and the simulation becomes unusable.
+This is because we are not utilising the power of shaders parallelism on the GPU threads.
+This immensely limits the amount of computations that can be done, and although nannou _does_ expose the plain wgpu API, allowing for shaders and such,
 I have decided that my next goal will be to apply the power of rust onto shaders using [`rust-gpu`](https://rust-gpu.github.io/),
 and by building up the application from scratch.
 
-In short, the nannou demo has proven succesful, being able to showcase smallscale experiments
+In short, the nannou demo has proven successful, being able to showcase small-scale experiments
 with simpler vector fields and particles moving along them. However, to create more interesting and complex mechanics,
 a different approach has to be taken.
