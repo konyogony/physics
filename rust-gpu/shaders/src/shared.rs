@@ -29,8 +29,8 @@ pub struct ShaderConstants {
     pub dt: f32,
     // To know if i am within range
     pub num_particles: u32,
-    // Since we need to align to 16 bytes
-    pub _pad: [f32; 2],
+    pub epsilon_naught: f32,
+    pub num_charges: u32,
 }
 
 pub struct SDF;
