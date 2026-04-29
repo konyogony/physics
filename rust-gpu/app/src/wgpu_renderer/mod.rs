@@ -7,12 +7,14 @@ use winit::{
 };
 
 mod bind_group;
+mod electric_manager;
 mod mouse;
 mod particle_manager;
 mod pipelines;
 mod renderer;
 mod state;
 mod swapchain;
+mod texture;
 
 // The app struct will store the state of the application
 #[derive(Default)]

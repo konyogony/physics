@@ -1,5 +1,7 @@
-use crate::wgpu_renderer::bind_group::GlobalBindGroupLayout;
+use crate::wgpu_renderer::bind_group::{ElectricBindGroups, GlobalBindGroupLayout};
+use crate::wgpu_renderer::electric_manager::ElectricManager;
 use crate::wgpu_renderer::particle_manager::ParticleManager;
+use crate::wgpu_renderer::pipelines::electric::ElectricPipeline;
 use crate::wgpu_renderer::pipelines::grid::GridPipeline;
 use crate::wgpu_renderer::pipelines::particle::ParticlePipeline;
 use shaders::shared::ShaderConstants;
@@ -18,11 +20,18 @@ pub struct Renderer {
     global_bind_group_layout: GlobalBindGroupLayout,
     grid_pipeline: GridPipeline,
     particle_pipeline: ParticlePipeline,
+    electric_pipeline: ElectricPipeline,
+    electric_manger: ElectricManager,
     pub particle_manager: ParticleManager,
 }
 
 impl Renderer {
-    pub fn new(device: Device, queue: Queue, out_format: TextureFormat) -> anyhow::Result<Self> {
+    pub fn new(
+        device: Device,
+        queue: Queue,
+        out_format: TextureFormat,
+        (width, height): (u32, u32),
+    ) -> anyhow::Result<Self> {
         // Create all the bind groups first. Global bind group just refers to the one holding
         // shader constants, hence global.
         let global_bind_group_layout = GlobalBindGroupLayout::new(&device);
@@ -36,12 +45,19 @@ impl Renderer {
         // Responsible for persistant buffers, storing count, etc..
         let particle_manager = ParticleManager::new(&device, &global_bind_group_layout);
 
+        let electric_pipeline = ElectricPipeline::new(&device, &global_bind_group_layout)?;
+
+        let electric_manger =
+            ElectricManager::new(&device, &global_bind_group_layout, (width, height));
+
         // Pass it in
         Ok(Self {
             global_bind_group_layout,
+            electric_pipeline,
             grid_pipeline,
             particle_pipeline,
             particle_manager,
+            electric_manger,
             device,
             queue,
         })
@@ -78,6 +94,21 @@ impl Renderer {
             label: Some("MainComputePass"),
             timestamp_writes: None,
         });
+
+        self.electric_pipeline.compute_potential(
+            &mut cpass,
+            &constant_bind_groups,
+            &self.electric_manger.electric_bind_groups,
+            self.electric_manger.size,
+        );
+
+        self.electric_pipeline.compute_field(
+            &mut cpass,
+            &constant_bind_groups,
+            &self.electric_manger.electric_bind_groups,
+            self.electric_manger.size,
+        );
+
         self.particle_pipeline.compute(
             &mut cpass,
             &constant_bind_groups,

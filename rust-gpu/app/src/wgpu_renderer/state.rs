@@ -81,7 +81,7 @@ impl State {
         );
 
         // Create a renderer
-        let renderer = Renderer::new(device, queue, swapchain.get_format())?;
+        let renderer = Renderer::new(device, queue, swapchain.get_format(), (2560, 1440))?;
 
         // Create a mouse manager-ish
         let mouse = Mouse::new();
@@ -181,7 +181,8 @@ impl State {
                     aspect_ratio: render_target.texture().width() as f32
                         / render_target.texture().height() as f32,
                     num_particles: self.renderer.particle_manager.current_num_of_particles,
-                    _pad: [0.0; 2],
+                    epsilon_naught: ((8.9_f32).powi(-12)),
+                    num_charges: 1,
                 },
                 render_target,
             )

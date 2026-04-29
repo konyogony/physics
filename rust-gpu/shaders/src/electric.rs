@@ -8,11 +8,14 @@ use glam::{UVec2, UVec3, Vec2};
 use spirv_std::num_traits::Float;
 use spirv_std::{Image, spirv};
 
+// TODO:
+// CONVERT EVERYTHING FROM A DENSITY TEXTURE TO JUST DIRECT SUMMATION OVER EVERY CHARGE.
+
 // Creating storage textures.
 // NO SAMPLER NEEDED YAY!!!
 pub type ElectricDensity = Image!(2D, format = r32f, sampled = false);
 pub type ElectricPotential = Image!(2D, format = r32f, sampled = false);
-pub type ElectricField = Image!(2D, format = rg32f, sampled = false);
+pub type ElectricField = Image!(2D, format = rgba32f, sampled = false);
 
 pub const DV: f32 = 1.0;
 pub const H: u32 = 1;
@@ -88,6 +91,6 @@ pub fn electric_field_cs(
     let field = Vec2::new(-d_dx, -d_dy);
 
     unsafe {
-        electric_field.write(coords, field);
+        electric_field.write(coords, field.extend(0.0).extend(0.0));
     }
 }

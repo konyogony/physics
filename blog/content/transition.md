@@ -216,4 +216,30 @@ we have to mutate a variable that was passed in the header, for that purpose we 
 Similarly, to draw the arrows at each intersection of the gridlines we have to use SDFs.
 Firstly, we acquire the index of the closest grid line by dividing current coordinates by `GRID_SPACING_PX` and flooring the output.
 Lets recall, that for a line SDF we need to have the initial position, final position and current pixel position.
-The initial position can be acquired from the gridline indices
+In order to acquire the final position, similarly to the Nannou application, we call the `arrow_function` with correct coordinates.
+Afterwards, we store the original magnitude & normalise the resultant vector to make sure it doesnt interfere with other arrows.
+However, we cannot use a simple line SDF here, we have to use a rectange SDF to get sharp corners. This type of SDF is not too complicatd to make,
+as it is very similar to the line SDF, except for calculating the longitudonal and perpendicular distance seperatly.
+The following is the result of what we have achieved.
+
+As you can see the line clearly gets cut off at the edge of the grid. This is because we always round down, therefore even at the edge of a square,
+we will always look at and compare with a different edge. This can be solved by looping around neighboruing squares and calculating the SDF from their perspective as well.
+
+```rs
+for i in -1..=1 {
+  for j in -1..=1 {
+    let start_point = Vec2::new(
+      index_x * GRID_SPACING_PX + GRID_SPACING_PX * i as f32,
+      index_y * GRID_SPACING_PX + GRID_SPACING_PX * j as f32,
+    );
+    // Rest of calculations
+  }
+}
+```
+
+Now lets talk about arrow heads.
+An arrow head can be made from a triangle SDF, which is internally composed of 3 individual line SDFs.
+By combining the 3 line SDFs we can acquire the unsigned distance value.
+Now, we have to check if the point is inside or outside the triangle. Lets look at this analogy here,
+imagine you are moving counter clockwise along the contour of the triangle from A to B and you are looking out the window,
+the point will always appear to be on the left hand side.
