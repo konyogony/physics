@@ -1,3 +1,4 @@
+use crate::wgpu_renderer::texture::ElectricStorageTexturesBuffers;
 use shaders::shared::ShaderConstants;
 use wgpu::{
     BindGroup, BindGroupDescriptor, BindGroupEntry, BindGroupLayout, BindGroupLayoutDescriptor,
@@ -5,8 +6,6 @@ use wgpu::{
     BufferDescriptor, BufferUsages, Device, ShaderStages, StorageTextureAccess, TextureFormat,
     util::{BufferInitDescriptor, DeviceExt},
 };
-
-use crate::wgpu_renderer::texture::ElectricStorageTextures;
 
 // Global Bind Group LAYOUT struct, will hold layouts for each bind group.
 // To create a bind group, a layout is needed. Layout shows how data is arranged,
@@ -19,7 +18,8 @@ pub struct GlobalBindGroupLayout {
     // flags and gpu rules.
     pub particles_render: BindGroupLayout,
     pub particles_compute: BindGroupLayout,
-    pub electric: BindGroupLayout,
+    pub electric_potential: BindGroupLayout,
+    pub electric_field: BindGroupLayout,
 }
 
 // Now we split a single global bind group which holds multiple bind groups into their own buffer
@@ -60,7 +60,8 @@ pub struct ParticleBindGroups {
 #[derive(Debug, Clone)]
 pub struct ElectricBindGroups {
     // Will hold density, potential & field
-    pub electric: BindGroup,
+    pub electric_potential: BindGroup,
+    pub electric_field: BindGroup,
 }
 
 impl GlobalBindGroupLayout {
@@ -124,17 +125,17 @@ impl GlobalBindGroupLayout {
             ],
         });
 
-        let electric = device.create_bind_group_layout(&BindGroupLayoutDescriptor {
-            label: Some("ElectricBindGroupLayout"),
+        let electric_potential = device.create_bind_group_layout(&BindGroupLayoutDescriptor {
+            label: Some("ElectricPotentialBindGroupLayout"),
             entries: &[
-                // Density
+                // Charge list.
                 BindGroupLayoutEntry {
                     binding: 0,
                     visibility: ShaderStages::COMPUTE,
-                    ty: BindingType::StorageTexture {
-                        access: StorageTextureAccess::ReadOnly,
-                        format: TextureFormat::R32Float,
-                        view_dimension: wgpu::TextureViewDimension::D2,
+                    ty: BindingType::Buffer {
+                        ty: BufferBindingType::Storage { read_only: true },
+                        has_dynamic_offset: false,
+                        min_binding_size: None,
                     },
                     count: None,
                 },
@@ -143,7 +144,46 @@ impl GlobalBindGroupLayout {
                     binding: 1,
                     visibility: ShaderStages::COMPUTE,
                     ty: BindingType::StorageTexture {
-                        access: StorageTextureAccess::ReadWrite,
+                        access: StorageTextureAccess::WriteOnly,
+                        format: TextureFormat::R32Float,
+                        view_dimension: wgpu::TextureViewDimension::D2,
+                    },
+                    count: None,
+                },
+                // Field
+                BindGroupLayoutEntry {
+                    binding: 2,
+                    visibility: ShaderStages::COMPUTE,
+                    ty: BindingType::StorageTexture {
+                        access: StorageTextureAccess::WriteOnly,
+                        format: TextureFormat::Rgba32Float,
+                        view_dimension: wgpu::TextureViewDimension::D2,
+                    },
+                    count: None,
+                },
+            ],
+        });
+
+        let electric_field = device.create_bind_group_layout(&BindGroupLayoutDescriptor {
+            label: Some("ElectricFieldBindGroupLayout"),
+            entries: &[
+                // Charge list.
+                BindGroupLayoutEntry {
+                    binding: 0,
+                    visibility: ShaderStages::COMPUTE,
+                    ty: BindingType::Buffer {
+                        ty: BufferBindingType::Storage { read_only: true },
+                        has_dynamic_offset: false,
+                        min_binding_size: None,
+                    },
+                    count: None,
+                },
+                // Potential
+                BindGroupLayoutEntry {
+                    binding: 1,
+                    visibility: ShaderStages::COMPUTE,
+                    ty: BindingType::StorageTexture {
+                        access: StorageTextureAccess::ReadOnly,
                         format: TextureFormat::R32Float,
                         view_dimension: wgpu::TextureViewDimension::D2,
                     },
@@ -164,7 +204,8 @@ impl GlobalBindGroupLayout {
         });
 
         Self {
-            electric,
+            electric_field,
+            electric_potential,
             constants,
             particles_render,
             particles_compute,
@@ -319,29 +360,65 @@ impl GlobalBindGroupLayout {
     pub fn create_electric_bind_groups(
         &self,
         device: &Device,
-        electric_storage_textures: &ElectricStorageTextures,
+        electric_storage_textures_buffers: &ElectricStorageTexturesBuffers,
     ) -> ElectricBindGroups {
-        let electric = device.create_bind_group(&BindGroupDescriptor {
-            label: Some("ElectricBindGroup"),
-            layout: &self.electric,
+        let electric_potential = device.create_bind_group(&BindGroupDescriptor {
+            label: Some("ElectricPotentialBindGroup"),
+            layout: &self.electric_potential,
             entries: &[
                 BindGroupEntry {
                     binding: 0,
-                    resource: BindingResource::TextureView(&electric_storage_textures.density.view),
+                    resource: BindingResource::Buffer(BufferBinding {
+                        buffer: &electric_storage_textures_buffers.charges,
+                        offset: 0,
+                        size: None,
+                    }),
                 },
                 BindGroupEntry {
                     binding: 1,
                     resource: BindingResource::TextureView(
-                        &electric_storage_textures.potential.view,
+                        &electric_storage_textures_buffers.potential.view,
                     ),
                 },
                 BindGroupEntry {
                     binding: 2,
-                    resource: BindingResource::TextureView(&electric_storage_textures.field.view),
+                    resource: BindingResource::TextureView(
+                        &electric_storage_textures_buffers.field.view,
+                    ),
                 },
             ],
         });
 
-        ElectricBindGroups { electric }
+        let electric_field = device.create_bind_group(&BindGroupDescriptor {
+            label: Some("ElectricFieldBindGroup"),
+            layout: &self.electric_field,
+            entries: &[
+                BindGroupEntry {
+                    binding: 0,
+                    resource: BindingResource::Buffer(BufferBinding {
+                        buffer: &electric_storage_textures_buffers.charges,
+                        offset: 0,
+                        size: None,
+                    }),
+                },
+                BindGroupEntry {
+                    binding: 1,
+                    resource: BindingResource::TextureView(
+                        &electric_storage_textures_buffers.potential.view,
+                    ),
+                },
+                BindGroupEntry {
+                    binding: 2,
+                    resource: BindingResource::TextureView(
+                        &electric_storage_textures_buffers.field.view,
+                    ),
+                },
+            ],
+        });
+
+        ElectricBindGroups {
+            electric_field,
+            electric_potential,
+        }
     }
 }

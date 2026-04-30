@@ -1,11 +1,13 @@
+use shaders::Charge;
 use wgpu::{
-    Device, Sampler, SamplerDescriptor, TextureDescriptor, TextureFormat, TextureUsages,
-    TextureView, TextureViewDescriptor,
+    Buffer, BufferUsages, Device, Sampler, SamplerDescriptor, TextureDescriptor, TextureFormat,
+    TextureUsages, TextureView, TextureViewDescriptor,
+    util::{BufferInitDescriptor, DeviceExt},
 };
 
 #[derive(Debug, Clone)]
-pub struct ElectricStorageTextures {
-    pub density: Texture,
+pub struct ElectricStorageTexturesBuffers {
+    pub charges: Buffer,
     pub potential: Texture,
     pub field: Texture,
 }
@@ -37,9 +39,7 @@ impl Texture {
             sample_count: 1,
             dimension: wgpu::TextureDimension::D2,
             format,
-            usage: TextureUsages::STORAGE_BINDING
-                | TextureUsages::TEXTURE_BINDING
-                | TextureUsages::COPY_DST,
+            usage: TextureUsages::STORAGE_BINDING | TextureUsages::TEXTURE_BINDING,
             view_formats: &[],
         });
 
@@ -63,17 +63,29 @@ impl Texture {
         }
     }
 
+    pub fn create_electric_textures_buffers(
+        device: &Device,
+        (width, height): (u32, u32),
+        charges_vec: Vec<Charge>,
+    ) -> ElectricStorageTexturesBuffers {
+        let (potential, field) = Texture::create_electric_textures(device, (width, height));
+        let charges = device.create_buffer_init(&BufferInitDescriptor {
+            label: Some("ChargeBuffer"),
+            usage: BufferUsages::COPY_DST | BufferUsages::STORAGE,
+            contents: bytemuck::cast_slice(&charges_vec),
+        });
+
+        ElectricStorageTexturesBuffers {
+            charges,
+            potential,
+            field,
+        }
+    }
+
     pub fn create_electric_textures(
         device: &Device,
         (width, height): (u32, u32),
-    ) -> ElectricStorageTextures {
-        let density = Texture::new(
-            device,
-            "ElectricDensityTexture",
-            (width, height),
-            TextureFormat::R32Float,
-        );
-
+    ) -> (Texture, Texture) {
         let potential = Texture::new(
             device,
             "ElectricPotentialTexture",
@@ -88,10 +100,6 @@ impl Texture {
             TextureFormat::Rgba32Float,
         );
 
-        ElectricStorageTextures {
-            density,
-            potential,
-            field,
-        }
+        (potential, field)
     }
 }

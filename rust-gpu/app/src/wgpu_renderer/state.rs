@@ -2,6 +2,7 @@ use crate::wgpu_renderer::mouse::Mouse;
 use crate::wgpu_renderer::renderer::Renderer;
 use crate::wgpu_renderer::swapchain::SwapchainManager;
 use anyhow::Context;
+use shaders::Charge;
 use shaders::shared::ShaderConstants;
 use std::sync::Arc;
 use std::time::Instant;
@@ -50,8 +51,9 @@ impl State {
         // Small fast bits of memory that can be updated in a render pass
         // Vertex writable storage is required so that we can mutate a storage buffer and still use
         // it in the vertex shader
-        let required_features =
-            wgpu::Features::IMMEDIATES | wgpu::Features::VERTEX_WRITABLE_STORAGE;
+        let required_features = wgpu::Features::IMMEDIATES
+            | wgpu::Features::VERTEX_WRITABLE_STORAGE
+            | wgpu::Features::TEXTURE_ADAPTER_SPECIFIC_FORMAT_FEATURES;
         let required_limits = wgpu::Limits {
             // Only 128 bits, shocker
             max_immediate_size: 128,
@@ -80,8 +82,13 @@ impl State {
             surface,
         );
 
+        let charges = vec![Charge {
+            position: [200.0, 500.0],
+            charge: 1.0,
+        }];
+
         // Create a renderer
-        let renderer = Renderer::new(device, queue, swapchain.get_format(), (2560, 1440))?;
+        let renderer = Renderer::new(device, queue, swapchain.get_format(), (2560, 1440), charges)?;
 
         // Create a mouse manager-ish
         let mouse = Mouse::new();

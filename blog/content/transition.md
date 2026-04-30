@@ -47,7 +47,7 @@ where a scale was chosen centered around the origin. Here, there are multiple di
 In summary, inside the vertex shader we will be getting our **Clip Space** coordinates, doing calculations on them and outputting an **NDC**.
 Then, inside our fragment shader we will receive **Screen Space**, which gets mapped to a color.
 
-## Data flow
+# Data flow
 
 Now, lets talk about the data flow within our whole application. At the very beginning, we first have to compile and convert the rust shader code into an `.spv` file.
 Afterwards, the main `wgpu` application is initialised. In the `main` function the `event_loop` and `State` is created.
@@ -81,7 +81,7 @@ flowchart TD
 
 However, not to overload this page with extreme details, this is the only section where we will mention such a large hierarchy. In most cases, I will use simpler and more individual examples of problems that I had to solve and overcome, as well as interesting techniques used. However, it is still quite important to understand the general outline.
 
-## Signed Distance Fields
+# Signed Distance Fields
 
 The previously mentioned case of drawing a line from one point to the other is a common example of the use of a Signed Distance Field (SDF).
 An SDF works by calculating the distance from any point on the screen to an object, be it a line, a rectangle or a circle.
@@ -148,6 +148,11 @@ But how can we apply this SDF? After extracting the distance to a line, or some 
 This antialias function will use `smoothstep` to non-linearly increase the alpha value as distance gets closer to the thickness.
 Then we use this alpha value to interpolate between a certain color.
 This way by calculating the distance from any object, we can get the correct alpha and hence color in any pixel appropriately, giving us smooth blurred edges.
+
+# Replicating the application
+
+Now let us focus on re-creating all the features currently present inside our old Nannou simulation before we start adding new things.
+This will hopefully make the general architecture of the program more clear.
 
 ## Creating the background grid
 
@@ -242,4 +247,152 @@ An arrow head can be made from a triangle SDF, which is internally composed of 3
 By combining the 3 line SDFs we can acquire the unsigned distance value.
 Now, we have to check if the point is inside or outside the triangle. Lets look at this analogy here,
 imagine you are moving counter clockwise along the contour of the triangle from A to B and you are looking out the window,
-the point will always appear to be on the left hand side.
+the point will always appear to be on the left hand side. To check this mathematically, for each straight such as $\vec{AB}$, we take the cross
+product $\vec{AB}\times\vec{AP}$. After we take the cross product for each edge of the triangle we can check if every result came back negative if all were positive.
+Now, we just have to pass in 3 point that the triangle has to be made up of. Since this is an arrow head we will have to point on the perpendicular line
+and 1 point along the same gradient. The perpendicular line can be acquired in many different ways, but I chose the fun and more complicated way of rotating
+a point 90 degrees clockwise.
+
+$$
+\begin{aligned}
+\begin{bmatrix}
+x \\
+y
+\end{bmatrix} \,
+\begin{bmatrix}
+\cos{\theta} & \sin{\theta}\\
+-\sin{\theta} & \cos{\theta}
+\end{bmatrix}
+&=
+\begin{bmatrix}
+x\cos{\theta} + y\sin{\theta} \\
+-x\sin{\theta} + y\cos{\theta}
+\end{bmatrix} \\[10pt]
+&=
+\begin{bmatrix}
+x\cos{\pi} + y\sin{\pi} \\
+-x\sin{\pi} + y\cos{\pi}
+\end{bmatrix} \\
+&=
+\begin{bmatrix}
+-x\\
+y
+\end{bmatrix}
+\end{aligned}
+$$
+
+Now we can just apply a scaling to the directions to change the width and the height of the triangle.
+
+## Particles
+
+Now, the particles is where this new system really shines. No CPU computations means that we can generate and simulate loads of particles moving at the same time.
+The GPU updates each particles position using a **Compute Shader**. This type of shader does not render any output, but is able to manipulate textures, buffers and other pieces of data.
+This type of shader is also dispatched in groups, which allows data to be processed in parallel and use multiple threads.
+First, a struct representing each individual particle is created, which will hold the position, the color and the velocity for each particle.
+Afterwards, a buffer has to be created which acts kind of like an array for all the particles. This buffer will have a fixed size and we will be able to dynamically insert and remove particles from it.
+These dynamic updates is what drives this method of computations even higher up the efficiency scale, since this allows us not to recreate the buffers every single
+frame, but instead just pass in the persistent buffers. This way, the GPU never has to pass data back out to the CPU, meaning there is no major bottleneck.
+
+The compute shaders can recieve multiple parameters, in our use case `global_invocation_id` is the main drive of this shader, as gives us the index of the current particle we are working on.
+After we check that the index is within our range, we can extract this exact particle from the array and use its current position as input for the `arrow_function`.
+However, its important to note that the position for each particle is stored in the screen space, however the arrow function accepts input using centered cooridantes.
+After we change the coordinates and call the `arrow_function`, which gives us the velocity at any point in time and space, we translate the particles position by
+`velocity * constants.dt * TIME_SCALE`. The `constnats.dt` refers to a small period of time calculated between frames and passed in as a shader constant. The final compute shader will look like this:
+
+```rs
+#[spirv(compute(threads(256), entry_point_name = "particle_cs"))]
+pub fn particle_cs(
+    // The absolute index of the current data piece
+    #[spirv(global_invocation_id)] global_invocation_id: UVec3,
+    // First bind group carries constnats
+    #[spirv(descriptor_set = 0, binding = 0, storage_buffer)] constants: &ShaderConstants,
+    // Second bind group carries the input and output buffers which will hold particles.
+    #[spirv(descriptor_set = 1, binding = 0, storage_buffer)] input: &[Particle],
+    #[spirv(descriptor_set = 1, binding = 1, storage_buffer)] output: &mut [Particle],
+) {
+    // Extract the index using the invocation id
+    let particle_index = global_invocation_id.x as usize;
+    // Do math only if its within the range of particles that actually exist
+    if particle_index < constants.num_particles as usize {
+        let mut particle = input[particle_index];
+        // Center the position around the center of the screen
+        let px_x = particle.position[0] - constants.width as f32 / 2.0;
+        let px_y = -(particle.position[1] - constants.height as f32 / 2.0);
+        // Calculate the velocity of the particle at its specific point in space & time.
+        let velocity = arrow_fn(px_x, px_y, constants.time);
+
+        // Apply that velocity
+        particle.position[0] += velocity.x * constants.dt * TIME_SCALE;
+        // Minus sign since inverted coordinate system
+        particle.position[1] -= velocity.y * constants.dt * TIME_SCALE;
+
+        // Not to lose data, we create mutatable varialbe in the beginning,
+        // and we assign whole particle to the output.
+        output[particle_index] = particle;
+    }
+}
+```
+
+Now, this process can be optimised even further, we can use the ping-pong model to switch between two buffers that we will read and write from.
+The ping-pong buffer model also eliminates race conditions often seen when GPU is trying to access old data. This section will not go into the implementation of this sytem,
+as it will extend this already long blog, while virtually having the same output. The data from the compute shaders is then passed into the vertex shader, since we still have to display each particle.
+The vertex shader reads the position of each particle and creates a polygon shape. This shape is created from `POLYGON_VERTICES`, which can create `POLYGON_VERTICES / 3` fragments.
+Each fragment will start at the origin, extend outwards by `PARTICLE_RADIUS` and then use either sine or cosine to make the correct shape. The angle for the sine and cosine functions
+is acquired by `(2.0 * PI) / num_fragments`. Afterwards the fragment shader assigns the color of the particle to each fragment.
+
+<div class="svg-container">
+  <img src="./assets/polygon-dark.svg" class="invert-on-light" alt="Creation of the polygon from fragments" />
+</div>
+
+However, the buffer is created empty, therefore we need to find a way how to input the particles into the buffer.
+We will use the mouse position as the current particles position. To achieve that we will use the `WindowEvent::CursorMoved` event to recieve the current mouse position,
+and pass in the `Mouse` struct which persists the position and mouse states. Then, when the button mouse state changes we modify the particle buffer and update the number of particles.
+
+# Electrostatics and the Coulombs Law
+
+Now, lets talk physics, and let it be something new. The study of electrostatics involves charges, electric and magnetic fieds that dont alternate over time,
+hence the suffix statics. This means that the 4 Maxwell's equations simplfy to:
+
+$$
+\begin{aligned}
+\vec{\nabla} \cdot \vec{E} &= \frac{\rho}{\epsilon_0} \\
+\vec{\nabla} \cdot \vec{B} &= 0 \\
+\vec{\nabla} \times \vec{E} &= 0 \\
+\vec{\nabla} \times \vec{B} &= \frac{\vec{j}}{\epsilon_0}
+\end{aligned}
+$$
+
+What this means in practice is that it is much easier to compute and deal with charges that are not moving.
+Let us talk about the Coulombs Law now. The Coulomb law talks about the force on exerted on two charges, and is equal to the following expression.
+
+$$
+\vec{F_1} = \frac{1}{4\pi \epsilon_0} \, \frac{q_1 \, q_2}{r^2_{12}} \, \hat{e_{12}} = -\vec{F_2}
+$$
+
+Where $\hat{e_{12}}$ represents the unit vector from $q_1$ to $q_2$. An electric field is defined as the force per unit charge, therefore if we take $q_1$ as the reference, the electric field becomes:
+
+$$
+\vec{E} = \frac{1}{4\pi \epsilon_0} \, \frac{q_2}{r^2_{12}} \, \hat{e_{12}}
+$$
+
+This electric field can also be generalised for containing multiple charges, where we simply iterate over every charge.
+
+$$
+\vec{E} = \frac{1}{4\pi \epsilon_0} \, \sum_j \frac{q_j}{r^2_{1j}} \, \hat{e_{1j}}
+$$
+
+However, we can define the electric field in terms of a scalar value, the electric potential. This is usually prefered since you will only have to compute a single
+scalar value instead of multiple separate directions. The electric potential is defined as
+
+$$
+\phi = \frac{1}{4\pi \epsilon_0} \, \sum_j \frac{q_j}{r_j}
+$$
+
+and the negative gradient of $\phi$ relates directly to the electric field.
+
+$$
+\vec{E} = - \vec{\nabla} \phi
+$$
+
+By having 2 compute shaders that are responsible for firstly going through each charge and calculating the electric potential, and then utilising special
+compute science techniques to calculate the gradient of the scalar field.

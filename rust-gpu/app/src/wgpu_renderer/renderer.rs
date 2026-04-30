@@ -1,9 +1,10 @@
-use crate::wgpu_renderer::bind_group::{ElectricBindGroups, GlobalBindGroupLayout};
+use crate::wgpu_renderer::bind_group::GlobalBindGroupLayout;
 use crate::wgpu_renderer::electric_manager::ElectricManager;
 use crate::wgpu_renderer::particle_manager::ParticleManager;
 use crate::wgpu_renderer::pipelines::electric::ElectricPipeline;
 use crate::wgpu_renderer::pipelines::grid::GridPipeline;
 use crate::wgpu_renderer::pipelines::particle::ParticlePipeline;
+use shaders::Charge;
 use shaders::shared::ShaderConstants;
 use wgpu::wgt::CommandEncoderDescriptor;
 use wgpu::{
@@ -31,6 +32,7 @@ impl Renderer {
         queue: Queue,
         out_format: TextureFormat,
         (width, height): (u32, u32),
+        charges_vec: Vec<Charge>,
     ) -> anyhow::Result<Self> {
         // Create all the bind groups first. Global bind group just refers to the one holding
         // shader constants, hence global.
@@ -47,8 +49,12 @@ impl Renderer {
 
         let electric_pipeline = ElectricPipeline::new(&device, &global_bind_group_layout)?;
 
-        let electric_manger =
-            ElectricManager::new(&device, &global_bind_group_layout, (width, height));
+        let electric_manger = ElectricManager::new(
+            &device,
+            &global_bind_group_layout,
+            (width, height),
+            charges_vec,
+        );
 
         // Pass it in
         Ok(Self {
@@ -91,7 +97,7 @@ impl Renderer {
 
         // First we have to go through all the pipelies that have a compute pass
         let mut cpass = cmd_encoder.begin_compute_pass(&ComputePassDescriptor {
-            label: Some("MainComputePass"),
+            label: Some("FirstComputePass"),
             timestamp_writes: None,
         });
 
@@ -101,6 +107,12 @@ impl Renderer {
             &self.electric_manger.electric_bind_groups,
             self.electric_manger.size,
         );
+        drop(cpass);
+
+        let mut cpass = cmd_encoder.begin_compute_pass(&ComputePassDescriptor {
+            label: Some("SecondComputePass"),
+            timestamp_writes: None,
+        });
 
         self.electric_pipeline.compute_field(
             &mut cpass,

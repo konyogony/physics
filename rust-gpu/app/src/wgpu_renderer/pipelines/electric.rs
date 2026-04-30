@@ -17,11 +17,20 @@ impl ElectricPipeline {
     ) -> anyhow::Result<Self> {
         let shader_module = device.create_shader_module(include_spirv!(env!("SHADER_SPV_PATH")));
 
-        let layout_compute = device.create_pipeline_layout(&PipelineLayoutDescriptor {
-            label: Some("ParticleComputePipelineLayout"),
+        let layout_compute_potential = device.create_pipeline_layout(&PipelineLayoutDescriptor {
+            label: Some("ParticleComputePotentialPipelineLayout"),
             bind_group_layouts: &[
                 Some(&global_bind_group_layout.constants),
-                Some(&global_bind_group_layout.electric),
+                Some(&global_bind_group_layout.electric_potential),
+            ],
+            immediate_size: size_of::<ShaderConstants>() as u32,
+        });
+
+        let layout_compute_field = device.create_pipeline_layout(&PipelineLayoutDescriptor {
+            label: Some("ParticleComputeFieldPipelineLayout"),
+            bind_group_layouts: &[
+                Some(&global_bind_group_layout.constants),
+                Some(&global_bind_group_layout.electric_field),
             ],
             immediate_size: size_of::<ShaderConstants>() as u32,
         });
@@ -29,7 +38,7 @@ impl ElectricPipeline {
         let compute_potential_pipeline =
             device.create_compute_pipeline(&ComputePipelineDescriptor {
                 label: Some("ElectricPotentialComputePipeline"),
-                layout: Some(&layout_compute),
+                layout: Some(&layout_compute_potential),
                 module: &shader_module,
                 entry_point: Some("electric_potential_cs"),
                 compilation_options: Default::default(),
@@ -38,7 +47,7 @@ impl ElectricPipeline {
 
         let compute_field_pipeline = device.create_compute_pipeline(&ComputePipelineDescriptor {
             label: Some("ElectricFieldComputePipeline"),
-            layout: Some(&layout_compute),
+            layout: Some(&layout_compute_field),
             module: &shader_module,
             entry_point: Some("electric_field_cs"),
             compilation_options: Default::default(),
@@ -60,10 +69,9 @@ impl ElectricPipeline {
     ) {
         cpass.set_pipeline(&self.compute_potential_pipeline);
         cpass.set_bind_group(0, &constants_bind_groups.constants, &[]);
-        cpass.set_bind_group(1, &electric_bind_groups.electric, &[]);
+        cpass.set_bind_group(1, &electric_bind_groups.electric_potential, &[]);
 
-        // For each pixel
-        cpass.dispatch_workgroups((width * height).div_ceil(256), 1, 1);
+        cpass.dispatch_workgroups(width.div_ceil(16), height.div_ceil(16), 1);
     }
 
     pub fn compute_field(
@@ -75,8 +83,8 @@ impl ElectricPipeline {
     ) {
         cpass.set_pipeline(&self.compute_field_pipeline);
         cpass.set_bind_group(0, &constants_bind_groups.constants, &[]);
-        cpass.set_bind_group(1, &electric_bind_groups.electric, &[]);
+        cpass.set_bind_group(1, &electric_bind_groups.electric_field, &[]);
 
-        cpass.dispatch_workgroups((width * height).div_ceil(256), 1, 1);
+        cpass.dispatch_workgroups(width.div_ceil(16), height.div_ceil(16), 1);
     }
 }
