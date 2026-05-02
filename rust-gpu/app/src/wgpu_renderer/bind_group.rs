@@ -18,8 +18,7 @@ pub struct GlobalBindGroupLayout {
     // flags and gpu rules.
     pub particles_render: BindGroupLayout,
     pub particles_compute: BindGroupLayout,
-    pub electric_potential: BindGroupLayout,
-    pub electric_field: BindGroupLayout,
+    pub electric: BindGroupLayout,
 }
 
 // Now we split a single global bind group which holds multiple bind groups into their own buffer
@@ -60,8 +59,7 @@ pub struct ParticleBindGroups {
 #[derive(Debug, Clone)]
 pub struct ElectricBindGroups {
     // Will hold density, potential & field
-    pub electric_potential: BindGroup,
-    pub electric_field: BindGroup,
+    pub electric: BindGroup,
 }
 
 impl GlobalBindGroupLayout {
@@ -125,8 +123,8 @@ impl GlobalBindGroupLayout {
             ],
         });
 
-        let electric_potential = device.create_bind_group_layout(&BindGroupLayoutDescriptor {
-            label: Some("ElectricPotentialBindGroupLayout"),
+        let electric = device.create_bind_group_layout(&BindGroupLayoutDescriptor {
+            label: Some("ElectricBindGroupLayout"),
             entries: &[
                 // Charge list.
                 BindGroupLayoutEntry {
@@ -144,7 +142,10 @@ impl GlobalBindGroupLayout {
                     binding: 1,
                     visibility: ShaderStages::COMPUTE,
                     ty: BindingType::StorageTexture {
-                        access: StorageTextureAccess::WriteOnly,
+                        // ok so fun fact i wasted a day trying to make this work with 2 different
+                        // flipping layouts because ReadWrite didnt work, i had wrong flag
+                        // selected. Very fun!!!!
+                        access: StorageTextureAccess::ReadWrite,
                         format: TextureFormat::R32Float,
                         view_dimension: wgpu::TextureViewDimension::D2,
                     },
@@ -155,46 +156,7 @@ impl GlobalBindGroupLayout {
                     binding: 2,
                     visibility: ShaderStages::COMPUTE,
                     ty: BindingType::StorageTexture {
-                        access: StorageTextureAccess::WriteOnly,
-                        format: TextureFormat::Rgba32Float,
-                        view_dimension: wgpu::TextureViewDimension::D2,
-                    },
-                    count: None,
-                },
-            ],
-        });
-
-        let electric_field = device.create_bind_group_layout(&BindGroupLayoutDescriptor {
-            label: Some("ElectricFieldBindGroupLayout"),
-            entries: &[
-                // Charge list.
-                BindGroupLayoutEntry {
-                    binding: 0,
-                    visibility: ShaderStages::COMPUTE,
-                    ty: BindingType::Buffer {
-                        ty: BufferBindingType::Storage { read_only: true },
-                        has_dynamic_offset: false,
-                        min_binding_size: None,
-                    },
-                    count: None,
-                },
-                // Potential
-                BindGroupLayoutEntry {
-                    binding: 1,
-                    visibility: ShaderStages::COMPUTE,
-                    ty: BindingType::StorageTexture {
-                        access: StorageTextureAccess::ReadOnly,
-                        format: TextureFormat::R32Float,
-                        view_dimension: wgpu::TextureViewDimension::D2,
-                    },
-                    count: None,
-                },
-                // Field
-                BindGroupLayoutEntry {
-                    binding: 2,
-                    visibility: ShaderStages::COMPUTE,
-                    ty: BindingType::StorageTexture {
-                        access: StorageTextureAccess::WriteOnly,
+                        access: StorageTextureAccess::ReadWrite,
                         format: TextureFormat::Rgba32Float,
                         view_dimension: wgpu::TextureViewDimension::D2,
                     },
@@ -204,8 +166,7 @@ impl GlobalBindGroupLayout {
         });
 
         Self {
-            electric_field,
-            electric_potential,
+            electric,
             constants,
             particles_render,
             particles_compute,
@@ -362,9 +323,9 @@ impl GlobalBindGroupLayout {
         device: &Device,
         electric_storage_textures_buffers: &ElectricStorageTexturesBuffers,
     ) -> ElectricBindGroups {
-        let electric_potential = device.create_bind_group(&BindGroupDescriptor {
-            label: Some("ElectricPotentialBindGroup"),
-            layout: &self.electric_potential,
+        let electric = device.create_bind_group(&BindGroupDescriptor {
+            label: Some("ElectricBindGroup"),
+            layout: &self.electric,
             entries: &[
                 BindGroupEntry {
                     binding: 0,
@@ -389,36 +350,6 @@ impl GlobalBindGroupLayout {
             ],
         });
 
-        let electric_field = device.create_bind_group(&BindGroupDescriptor {
-            label: Some("ElectricFieldBindGroup"),
-            layout: &self.electric_field,
-            entries: &[
-                BindGroupEntry {
-                    binding: 0,
-                    resource: BindingResource::Buffer(BufferBinding {
-                        buffer: &electric_storage_textures_buffers.charges,
-                        offset: 0,
-                        size: None,
-                    }),
-                },
-                BindGroupEntry {
-                    binding: 1,
-                    resource: BindingResource::TextureView(
-                        &electric_storage_textures_buffers.potential.view,
-                    ),
-                },
-                BindGroupEntry {
-                    binding: 2,
-                    resource: BindingResource::TextureView(
-                        &electric_storage_textures_buffers.field.view,
-                    ),
-                },
-            ],
-        });
-
-        ElectricBindGroups {
-            electric_field,
-            electric_potential,
-        }
+        ElectricBindGroups { electric }
     }
 }

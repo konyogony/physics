@@ -149,7 +149,12 @@ impl Renderer {
         });
 
         // Draw it using our pipeline we created.
-        self.grid_pipeline.draw(&mut rpass, &constant_bind_groups);
+        self.grid_pipeline.draw(
+            &mut rpass,
+            &constant_bind_groups,
+            &self.electric_manger.electric_bind_groups,
+        );
+
         self.particle_pipeline.draw(
             &mut rpass,
             &constant_bind_groups,

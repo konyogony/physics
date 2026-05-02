@@ -53,7 +53,8 @@ impl State {
         // it in the vertex shader
         let required_features = wgpu::Features::IMMEDIATES
             | wgpu::Features::VERTEX_WRITABLE_STORAGE
-            | wgpu::Features::TEXTURE_ADAPTER_SPECIFIC_FORMAT_FEATURES;
+            | wgpu::Features::TEXTURE_ADAPTER_SPECIFIC_FORMAT_FEATURES
+            | wgpu::Features::STORAGE_RESOURCE_BINDING_ARRAY;
         let required_limits = wgpu::Limits {
             // Only 128 bits, shocker
             max_immediate_size: 128,

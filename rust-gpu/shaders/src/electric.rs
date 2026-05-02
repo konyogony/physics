@@ -4,7 +4,7 @@
 use crate::shared::ShaderConstants;
 use bytemuck::{Pod, Zeroable};
 use core::f32::consts::PI;
-use glam::{IVec2, UVec2, UVec3, Vec2};
+use glam::{IVec2, UVec3, Vec2};
 #[allow(unused_imports)]
 use spirv_std::num_traits::Float;
 use spirv_std::{Image, spirv};
