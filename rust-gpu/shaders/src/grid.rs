@@ -2,7 +2,7 @@
 // They can recieve inputs and give outputs by making them mutable and using pointers.
 // No std librarires are allowed here.
 
-use crate::ElectricField;
+use crate::Field;
 use crate::shared::{
     SDF, ShaderConstants, antialias, antialias_no_fwidth, hsv, map_range, smoothstep,
 };
@@ -39,7 +39,7 @@ pub fn grid_vs(#[spirv(vertex_index)] vert_id: i32, #[spirv(position)] vtx_pos: 
 #[spirv(fragment(entry_point_name = "grid_fs"))]
 pub fn grid_fs(
     #[spirv(descriptor_set = 0, binding = 0, storage_buffer)] constants: &ShaderConstants,
-    #[spirv(descriptor_set = 1, binding = 2)] electric_field: &ElectricField,
+    #[spirv(descriptor_set = 1, binding = 2, storage_buffer)] electric_field: &mut [Field],
     #[spirv(frag_coord)] frag_coords: Vec4,
     output: &mut Vec4,
 ) {
@@ -76,7 +76,8 @@ pub fn grid_fs(
                 (start_point.x - (constants.width as f32) / 2.0) as u32,
                 (start_point.y - (constants.height as f32) / 2.0) as u32,
             );
-            let field_reading = electric_field.read(space_coords);
+            let index = space_coords.x + space_coords.y * constants.width;
+            let field_reading = electric_field[index as usize].field;
             let vec = Vec2::new(field_reading[0], field_reading[1]);
             let len = vec.length().max(0.001);
 

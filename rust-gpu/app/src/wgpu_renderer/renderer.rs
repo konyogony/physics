@@ -125,6 +125,7 @@ impl Renderer {
             &mut cpass,
             &constant_bind_groups,
             &self.particle_manager.particle_bind_groups,
+            &self.electric_manger.electric_bind_groups,
             self.particle_manager.current_num_of_particles,
         );
         // Dont forget to drop after each pass

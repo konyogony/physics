@@ -1,7 +1,8 @@
 // Seperate shader for the particles
 #![allow(clippy::too_many_arguments)]
 
-use crate::shared::{ShaderConstants, arrow_fn};
+use crate::Field;
+use crate::shared::ShaderConstants;
 use bytemuck::{Pod, Zeroable};
 use core::f32::consts::PI;
 use glam::{UVec3, Vec2, Vec3, Vec4};
@@ -82,20 +83,19 @@ pub fn particle_cs(
     #[spirv(descriptor_set = 0, binding = 0, storage_buffer)] constants: &ShaderConstants,
     #[spirv(descriptor_set = 1, binding = 0, storage_buffer)] input: &[Particle],
     #[spirv(descriptor_set = 1, binding = 1, storage_buffer)] output: &mut [Particle],
+    #[spirv(descriptor_set = 2, binding = 2, storage_buffer)] electric_field: &mut [Field],
 ) {
     // Extract the index using the invocation id
     let particle_index = global_invocation_id.x as usize;
     // Do math only if its within the range of particles that actually exist
     if particle_index < constants.num_particles as usize {
         let mut particle = input[particle_index];
-        let px_x = particle.position[0] - constants.width as f32 / 2.0;
-        let px_y = -(particle.position[1] - constants.height as f32 / 2.0);
+        let index = particle.position[0] + particle.position[1] * constants.width as f32;
         // Calculate the velocity of the particle at its specific point in space & time.
-        let velocity = arrow_fn(px_x, px_y, constants.time);
-
+        let velocity = electric_field[index as usize].field;
         // Apply that velocity
-        particle.position[0] += velocity.x * constants.dt * TIME_SCALE;
-        particle.position[1] -= velocity.y * constants.dt * TIME_SCALE;
+        particle.position[0] += velocity[0] * constants.dt * TIME_SCALE;
+        particle.position[1] -= velocity[1] * constants.dt * TIME_SCALE;
 
         // Not to lose data, we create mut var, and we assign whole particle to the output.
         output[particle_index] = particle;

@@ -1,9 +1,9 @@
-use crate::wgpu_renderer::texture::ElectricStorageTexturesBuffers;
 use shaders::shared::ShaderConstants;
+use shaders::{Charge, Field};
 use wgpu::{
     BindGroup, BindGroupDescriptor, BindGroupEntry, BindGroupLayout, BindGroupLayoutDescriptor,
     BindGroupLayoutEntry, BindingResource, BindingType, Buffer, BufferBinding, BufferBindingType,
-    BufferDescriptor, BufferUsages, Device, ShaderStages, StorageTextureAccess, TextureFormat,
+    BufferDescriptor, BufferUsages, Device, ShaderStages,
     util::{BufferInitDescriptor, DeviceExt},
 };
 
@@ -55,6 +55,13 @@ pub struct ParticleBindGroups {
 }
 
 // Electrostatics
+
+#[derive(Debug, Clone)]
+pub struct ElectricStorageBuffers {
+    pub charges: Buffer,
+    pub potential: Buffer,
+    pub field: Buffer,
+}
 
 #[derive(Debug, Clone)]
 pub struct ElectricBindGroups {
@@ -129,7 +136,7 @@ impl GlobalBindGroupLayout {
                 // Charge list.
                 BindGroupLayoutEntry {
                     binding: 0,
-                    visibility: ShaderStages::COMPUTE,
+                    visibility: ShaderStages::COMPUTE | ShaderStages::VERTEX_FRAGMENT,
                     ty: BindingType::Buffer {
                         ty: BufferBindingType::Storage { read_only: true },
                         has_dynamic_offset: false,
@@ -140,25 +147,22 @@ impl GlobalBindGroupLayout {
                 // Potential
                 BindGroupLayoutEntry {
                     binding: 1,
-                    visibility: ShaderStages::COMPUTE,
-                    ty: BindingType::StorageTexture {
-                        // ok so fun fact i wasted a day trying to make this work with 2 different
-                        // flipping layouts because ReadWrite didnt work, i had wrong flag
-                        // selected. Very fun!!!!
-                        access: StorageTextureAccess::ReadWrite,
-                        format: TextureFormat::R32Float,
-                        view_dimension: wgpu::TextureViewDimension::D2,
+                    visibility: ShaderStages::COMPUTE | ShaderStages::VERTEX_FRAGMENT,
+                    ty: BindingType::Buffer {
+                        ty: BufferBindingType::Storage { read_only: false },
+                        has_dynamic_offset: false,
+                        min_binding_size: None,
                     },
                     count: None,
                 },
                 // Field
                 BindGroupLayoutEntry {
                     binding: 2,
-                    visibility: ShaderStages::COMPUTE,
-                    ty: BindingType::StorageTexture {
-                        access: StorageTextureAccess::ReadWrite,
-                        format: TextureFormat::Rgba32Float,
-                        view_dimension: wgpu::TextureViewDimension::D2,
+                    visibility: ShaderStages::COMPUTE | ShaderStages::VERTEX_FRAGMENT,
+                    ty: BindingType::Buffer {
+                        ty: BufferBindingType::Storage { read_only: false },
+                        has_dynamic_offset: false,
+                        min_binding_size: None,
                     },
                     count: None,
                 },
@@ -321,7 +325,7 @@ impl GlobalBindGroupLayout {
     pub fn create_electric_bind_groups(
         &self,
         device: &Device,
-        electric_storage_textures_buffers: &ElectricStorageTexturesBuffers,
+        electric_storage_buffers: &ElectricStorageBuffers,
     ) -> ElectricBindGroups {
         let electric = device.create_bind_group(&BindGroupDescriptor {
             label: Some("ElectricBindGroup"),
@@ -330,26 +334,65 @@ impl GlobalBindGroupLayout {
                 BindGroupEntry {
                     binding: 0,
                     resource: BindingResource::Buffer(BufferBinding {
-                        buffer: &electric_storage_textures_buffers.charges,
+                        buffer: &electric_storage_buffers.charges,
                         offset: 0,
                         size: None,
                     }),
                 },
                 BindGroupEntry {
                     binding: 1,
-                    resource: BindingResource::TextureView(
-                        &electric_storage_textures_buffers.potential.view,
-                    ),
+                    resource: BindingResource::Buffer(BufferBinding {
+                        buffer: &electric_storage_buffers.potential,
+                        offset: 0,
+                        size: None,
+                    }),
                 },
                 BindGroupEntry {
-                    binding: 2,
-                    resource: BindingResource::TextureView(
-                        &electric_storage_textures_buffers.field.view,
-                    ),
+                    binding: 1,
+                    resource: BindingResource::Buffer(BufferBinding {
+                        buffer: &electric_storage_buffers.field,
+                        offset: 0,
+                        size: None,
+                    }),
                 },
             ],
         });
 
         ElectricBindGroups { electric }
+    }
+
+    pub fn create_electric_buffers(
+        &self,
+        device: &Device,
+        (width, height): (u32, u32),
+        charges_vec: Vec<Charge>,
+    ) -> ElectricStorageBuffers {
+        let max_index = width * height;
+
+        let charges = device.create_buffer_init(&BufferInitDescriptor {
+            label: Some("ChargeBuffer"),
+            usage: BufferUsages::COPY_DST | BufferUsages::STORAGE,
+            contents: bytemuck::cast_slice(&charges_vec),
+        });
+
+        let potential = device.create_buffer(&BufferDescriptor {
+            label: Some("PotentialBuffer"),
+            usage: BufferUsages::COPY_DST | BufferUsages::STORAGE,
+            size: (std::mem::size_of::<f32>() * max_index as usize) as u64,
+            mapped_at_creation: false,
+        });
+
+        let field = device.create_buffer(&BufferDescriptor {
+            label: Some("FieldBuffer"),
+            usage: BufferUsages::COPY_DST | BufferUsages::STORAGE,
+            size: (std::mem::size_of::<Field>() * max_index as usize) as u64,
+            mapped_at_creation: false,
+        });
+
+        ElectricStorageBuffers {
+            charges,
+            potential,
+            field,
+        }
     }
 }

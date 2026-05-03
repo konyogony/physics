@@ -1,5 +1,5 @@
 use crate::wgpu_renderer::bind_group::{
-    ConstantsBindGroups, GlobalBindGroupLayout, ParticleBindGroups,
+    ConstantsBindGroups, ElectricBindGroups, GlobalBindGroupLayout, ParticleBindGroups,
 };
 use shaders::POLYGON_VERTICES;
 use shaders::shared::ShaderConstants;
@@ -43,6 +43,7 @@ impl ParticlePipeline {
             bind_group_layouts: &[
                 Some(&global_bind_group_layout.constants),
                 Some(&global_bind_group_layout.particles_compute),
+                Some(&global_bind_group_layout.electric),
             ],
             immediate_size: size_of::<ShaderConstants>() as u32,
         });
@@ -127,6 +128,7 @@ impl ParticlePipeline {
         cpass: &mut ComputePass<'_>,
         constants_bind_groups: &ConstantsBindGroups,
         particle_bind_groups: &ParticleBindGroups,
+        electric_bind_groups: &ElectricBindGroups,
         num_particles: u32,
     ) {
         cpass.set_pipeline(&self.compute_pipeline);
@@ -138,6 +140,7 @@ impl ParticlePipeline {
             cpass.set_bind_group(1, &particle_bind_groups.particles_compute_ba, &[]);
         }
 
+        cpass.set_bind_group(2, &electric_bind_groups.electric, &[]);
         cpass.dispatch_workgroups(num_particles.div_ceil(256), 1, 1);
         self.out_is_buffer_a = !self.out_is_buffer_a;
     }
