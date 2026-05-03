@@ -1,4 +1,4 @@
-//use shaders::{Charge, Field};
+//use shaders_shared::{Charge, Field};
 //use wgpu::{
 //    Buffer, BufferDescriptor, BufferUsages, Device, Sampler, SamplerDescriptor, TextureDescriptor,
 //    TextureFormat, TextureUsages, TextureView, TextureViewDescriptor,

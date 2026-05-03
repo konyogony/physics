@@ -1,30 +1,21 @@
+#![no_std]
+// Seperate shader for the particles
+#![allow(clippy::too_many_arguments)]
+
 // So this is the shader code itself, the fragment and vertex shaders are stored here.
 // They can recieve inputs and give outputs by making them mutable and using pointers.
 // No std librarires are allowed here.
 
-use crate::Field;
-use crate::shared::{
-    SDF, ShaderConstants, antialias, antialias_no_fwidth, hsv, map_range, smoothstep,
-};
 use glam::{UVec2, Vec2, Vec4, Vec4Swizzles};
+use shaders_shared::{
+    ARROW_HEAD_HEIGHT_PX, ARROW_HEAD_WIDTH_PX, ARROW_SCALE, ARROW_THICKNESS_PX, AXIS_COLOR,
+    BG_COLOR, COLOR_VALUE, Field, GRID_COLOR, GRID_SPACING_PX, GRID_THICKNESS_PX, HIGHLIGHT_COLOR,
+    HIGHLIGHT_SQUARES, MIN_ARROW_SCALE, SDF, ShaderConstants, antialias, antialias_no_fwidth, hsv,
+    map_range, smoothstep,
+};
 #[allow(unused_imports)]
 use spirv_std::num_traits::Float;
 use spirv_std::spirv;
-
-// colors RGBA
-const GRID_COLOR: Vec4 = Vec4::new(0.3, 0.3, 0.3, 0.05);
-const AXIS_COLOR: Vec4 = Vec4::new(1.0, 1.0, 1.0, 0.8);
-const BG_COLOR: Vec4 = Vec4::new(0.0, 0.0, 0.0, 1.0);
-const HIGHLIGHT_COLOR: Vec4 = Vec4::new(0.0, 1.0, 1.0, 0.4);
-const GRID_THICKNESS_PX: f32 = 1.0;
-const GRID_SPACING_PX: f32 = 0.1;
-const ARROW_THICKNESS_PX: f32 = 1.0;
-const ARROW_HEAD_WIDTH_PX: f32 = 4.0;
-const ARROW_HEAD_HEIGHT_PX: f32 = 10.0;
-const HIGHLIGHT_SQUARES: f32 = 3.0;
-const ARROW_SCALE: f32 = 25.0;
-const MIN_ARROW_SCALE: f32 = 0.7;
-const COLOR_VALUE: f32 = 2.5;
 
 #[spirv(vertex(entry_point_name = "grid_vs"))]
 pub fn grid_vs(#[spirv(vertex_index)] vert_id: i32, #[spirv(position)] vtx_pos: &mut Vec4) {

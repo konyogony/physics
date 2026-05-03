@@ -4,10 +4,9 @@ use std::path::PathBuf;
 
 const MANIFEST_DIR: &str = env!("CARGO_MANIFEST_DIR");
 
-// This file just builds the shader defined in the shaders/src/lib.rs
-pub fn main() -> anyhow::Result<()> {
+pub fn build_shader(path: &str, env: &str) -> anyhow::Result<()> {
     // We fetch the vertex path using env variable
-    let crate_path = [MANIFEST_DIR, "..", "shaders"]
+    let crate_path = [MANIFEST_DIR, "..", "shaders", path]
         .iter()
         .copied()
         .collect::<PathBuf>();
@@ -28,7 +27,16 @@ pub fn main() -> anyhow::Result<()> {
     // Get where the spv is stored
     let spv_path = compile_result.module.unwrap_single();
     // Set an env variables so the app can fetch from it instead.
-    println!("cargo::rustc-env=SHADER_SPV_PATH={}", spv_path.display());
+    println!("cargo::rustc-env={}={}", env, spv_path.display());
     // Exit succesfully.
+    Ok(())
+}
+
+// Turns out we need multiple shaders and cant just pack it all into a single one. Stupid me.
+// This file just builds the shader defined in the shaders/src/lib.rs
+pub fn main() -> anyhow::Result<()> {
+    build_shader("electric", "ELECTRIC_SHADER_PATH")?;
+    build_shader("grid", "GRID_SHADER_PATH")?;
+    build_shader("particle", "PARTICLE_SHADER_PATH")?;
     Ok(())
 }

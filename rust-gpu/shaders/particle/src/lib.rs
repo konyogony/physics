@@ -1,28 +1,15 @@
+#![no_std]
 // Seperate shader for the particles
 #![allow(clippy::too_many_arguments)]
 
-use crate::Field;
-use crate::shared::ShaderConstants;
-use bytemuck::{Pod, Zeroable};
 use core::f32::consts::PI;
 use glam::{UVec3, Vec2, Vec3, Vec4};
+use shaders_shared::{
+    Field, PARTICLE_RADIUS, POLYGON_VERTICES, Particle, ShaderConstants, TIME_SCALE,
+};
 #[allow(unused_imports)]
 use spirv_std::num_traits::Float;
 use spirv_std::spirv;
-
-#[derive(Debug, Clone, Copy, Zeroable, Pod)]
-#[repr(C)]
-pub struct Particle {
-    pub position: [f32; 2],
-    pub velocity: [f32; 2],
-    pub color: [f32; 3],
-    pub _pad: f32,
-}
-
-pub const TIME_SCALE: f32 = 20.0;
-pub const MAX_PARTICLES: u32 = 262144;
-pub const PARTICLE_RADIUS: f32 = 10.0;
-pub const POLYGON_VERTICES: u32 = 48;
 
 // Say each particle will consist of 6 vertices. (Small square / quad)
 // For each group of 6 vertices we have to displace them first by the particle position

@@ -1,8 +1,7 @@
 use crate::wgpu_renderer::bind_group::{
     ConstantsBindGroups, ElectricBindGroups, GlobalBindGroupLayout, ParticleBindGroups,
 };
-use shaders::POLYGON_VERTICES;
-use shaders::shared::ShaderConstants;
+use shaders_shared::{POLYGON_VERTICES, ShaderConstants};
 use wgpu::{
     ColorTargetState, ColorWrites, ComputePass, Device, FragmentState, FrontFace, MultisampleState,
     PipelineLayoutDescriptor, PolygonMode, PrimitiveState, PrimitiveTopology, RenderPass,
@@ -23,7 +22,8 @@ impl ParticlePipeline {
         global_bind_group_layout: &GlobalBindGroupLayout,
         out_format: TextureFormat,
     ) -> anyhow::Result<Self> {
-        let shader_module = device.create_shader_module(include_spirv!(env!("SHADER_SPV_PATH")));
+        let shader_module =
+            device.create_shader_module(include_spirv!(env!("PARTICLE_SHADER_PATH")));
 
         // Layout cannot be shared anymore
         let layout_render = device.create_pipeline_layout(&PipelineLayoutDescriptor {

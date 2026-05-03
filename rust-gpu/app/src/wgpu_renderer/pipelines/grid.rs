@@ -1,7 +1,7 @@
 use crate::wgpu_renderer::bind_group::{
     ConstantsBindGroups, ElectricBindGroups, GlobalBindGroupLayout,
 };
-use shaders::shared::ShaderConstants;
+use shaders_shared::ShaderConstants;
 use wgpu::{
     ColorTargetState, ColorWrites, Device, FragmentState, FrontFace, MultisampleState,
     PipelineLayoutDescriptor, PolygonMode, PrimitiveState, PrimitiveTopology, RenderPass,
@@ -23,7 +23,7 @@ impl GridPipeline {
     ) -> anyhow::Result<Self> {
         // Create a shader module, which will already be present in the correct location via this
         // env variable.
-        let shader_module = device.create_shader_module(include_spirv!(env!("SHADER_SPV_PATH")));
+        let shader_module = device.create_shader_module(include_spirv!(env!("GRID_SHADER_PATH")));
 
         // Create the render pipeline layout,
         let layout = device.create_pipeline_layout(&PipelineLayoutDescriptor {

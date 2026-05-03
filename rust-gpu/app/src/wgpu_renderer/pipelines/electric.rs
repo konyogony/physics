@@ -1,7 +1,7 @@
 use crate::wgpu_renderer::bind_group::{
     ConstantsBindGroups, ElectricBindGroups, GlobalBindGroupLayout,
 };
-use shaders::shared::ShaderConstants;
+use shaders_shared::ShaderConstants;
 use wgpu::{ComputePass, Device, PipelineLayoutDescriptor, include_spirv};
 use wgpu::{ComputePipeline, ComputePipelineDescriptor};
 
@@ -15,7 +15,8 @@ impl ElectricPipeline {
         device: &Device,
         global_bind_group_layout: &GlobalBindGroupLayout,
     ) -> anyhow::Result<Self> {
-        let shader_module = device.create_shader_module(include_spirv!(env!("SHADER_SPV_PATH")));
+        let shader_module =
+            device.create_shader_module(include_spirv!(env!("ELECTRIC_SHADER_PATH")));
 
         let layout_compute = device.create_pipeline_layout(&PipelineLayoutDescriptor {
             label: Some("ParticleComputePipelineLayout"),

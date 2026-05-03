@@ -1,7 +1,7 @@
 [package]
-name = "shaders"
-version = "0.1.0"
-edition = "2024"
+name = "shaders-electric"
+version.workspace = true
+edition.workspace = true
 
 [lints]
 workspace = true
@@ -10,3 +10,4 @@ workspace = true
 spirv-std.workspace = true
 glam.workspace = true
 bytemuck.workspace = true
+shaders-shared = { path = "../shared" }

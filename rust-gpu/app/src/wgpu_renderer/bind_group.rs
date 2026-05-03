@@ -1,5 +1,4 @@
-use shaders::shared::ShaderConstants;
-use shaders::{Charge, Field};
+use shaders_shared::{Charge, Field, ShaderConstants};
 use wgpu::{
     BindGroup, BindGroupDescriptor, BindGroupEntry, BindGroupLayout, BindGroupLayoutDescriptor,
     BindGroupLayoutEntry, BindingResource, BindingType, Buffer, BufferBinding, BufferBindingType,

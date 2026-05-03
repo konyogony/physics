@@ -2,8 +2,7 @@ use crate::wgpu_renderer::mouse::Mouse;
 use crate::wgpu_renderer::renderer::Renderer;
 use crate::wgpu_renderer::swapchain::SwapchainManager;
 use anyhow::Context;
-use shaders::Charge;
-use shaders::shared::ShaderConstants;
+use shaders_shared::{Charge, ShaderConstants};
 use std::sync::Arc;
 use std::time::Instant;
 use winit::{

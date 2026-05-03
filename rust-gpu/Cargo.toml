@@ -1,5 +1,11 @@
 [workspace]
-members = ["app", "shaders"]
+members = [
+  "app",
+  "shaders/shared",
+  "shaders/grid",
+  "shaders/electric",
+  "shaders/particle",
+]
 resolver = "3"
 
 [workspace.package]

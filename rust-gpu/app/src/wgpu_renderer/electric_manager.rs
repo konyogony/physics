@@ -1,7 +1,7 @@
 use crate::wgpu_renderer::bind_group::{
     ElectricBindGroups, ElectricStorageBuffers, GlobalBindGroupLayout,
 };
-use shaders::Charge;
+use shaders_shared::Charge;
 use wgpu::Device;
 
 pub struct ElectricManager {

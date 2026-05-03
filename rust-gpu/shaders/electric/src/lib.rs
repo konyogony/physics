@@ -1,32 +1,13 @@
+#![no_std]
 // Seperate shader for the particles
 #![allow(clippy::too_many_arguments)]
 
-use crate::shared::ShaderConstants;
-use bytemuck::{Pod, Zeroable};
 use core::f32::consts::PI;
 use glam::{UVec3, Vec2};
+use shaders_shared::{Charge, Field, H, ShaderConstants};
 #[allow(unused_imports)]
 use spirv_std::num_traits::Float;
 use spirv_std::spirv;
-
-// TODO:
-// CONVERT EVERYTHING FROM A DENSITY TEXTURE TO JUST DIRECT SUMMATION OVER EVERY CHARGE.
-
-#[derive(Debug, Clone, Copy, Zeroable, Pod)]
-#[repr(C)]
-pub struct Charge {
-    pub charge: f32,
-    pub position: [f32; 2],
-}
-
-#[derive(Debug, Clone, Copy, Zeroable, Pod)]
-#[repr(C)]
-pub struct Field {
-    pub field: [f32; 2],
-}
-
-pub const DV: f32 = 1.0;
-pub const H: i32 = 1;
 
 // This will be ran for every pixel on the screen once.
 #[spirv(compute(threads(16, 16), entry_point_name = "electric_potential_cs"))]

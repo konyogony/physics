@@ -1,7 +1,7 @@
 use crate::wgpu_renderer::bind_group::{
     GlobalBindGroupLayout, ParticleBindGroups, ParticleBuffers,
 };
-use shaders::{MAX_PARTICLES, particle::Particle};
+use shaders_shared::{MAX_PARTICLES, Particle};
 use wgpu::{Device, Queue};
 
 pub struct ParticleManager {

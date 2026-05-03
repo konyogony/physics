@@ -1,22 +1,64 @@
+#![no_std]
+// Seperate shader for the particles
+#![allow(clippy::too_many_arguments)]
+
 use bytemuck::{Pod, Zeroable};
 use glam::{Vec2, Vec3, Vec4};
 use spirv_std::arch::Derivative;
 #[allow(unused_imports)]
 use spirv_std::num_traits::Float;
 
-// AI Generated function for testing
-// pub fn arrow_fn(x: f32, y: f32, t: f32) -> Vec2 {
-//     let p = Vec2::new(x, y) * 0.005;
-//     let time = t * 0.4;
-//     let mut vx = (p.y + time).cos() + (p.y * 0.5 + time * 0.6).cos();
-//     let mut vy = (p.x - time).sin() + (p.x * 0.4 - time * 0.8).sin();
-//     let angle = (p.x * 1.2 + time).sin() * (p.y * 1.2 - time).cos();
-//     vx += angle.cos() * 0.5;
-//     vy += angle.sin() * 0.5;
-//     vx += (p.x * 3.0 + p.y * 2.0 + time * 2.0).sin() * 0.2;
-//     vy += (p.y * 3.0 - p.x * 2.0 - time * 2.0).cos() * 0.2;
-//     Vec2::new(vx, vy)
-// }
+// --- From Particle Shader ---
+
+#[derive(Debug, Clone, Copy, Zeroable, Pod)]
+#[repr(C)]
+pub struct Particle {
+    pub position: [f32; 2],
+    pub velocity: [f32; 2],
+    pub color: [f32; 3],
+    pub _pad: f32,
+}
+
+pub const TIME_SCALE: f32 = 20.0;
+pub const MAX_PARTICLES: u32 = 262144;
+pub const PARTICLE_RADIUS: f32 = 10.0;
+pub const POLYGON_VERTICES: u32 = 48;
+
+// --- From Electric Shader ---
+pub const DV: f32 = 1.0;
+pub const H: i32 = 1;
+
+#[derive(Debug, Clone, Copy, Zeroable, Pod)]
+#[repr(C)]
+pub struct Charge {
+    pub charge: f32,
+    pub position: [f32; 2],
+}
+
+#[derive(Debug, Clone, Copy, Zeroable, Pod)]
+#[repr(C)]
+pub struct Field {
+    pub field: [f32; 2],
+}
+
+// --- From Grid Shader ---
+
+// colors RGBA
+pub const GRID_COLOR: Vec4 = Vec4::new(0.3, 0.3, 0.3, 0.05);
+pub const AXIS_COLOR: Vec4 = Vec4::new(1.0, 1.0, 1.0, 0.8);
+pub const BG_COLOR: Vec4 = Vec4::new(0.0, 0.0, 0.0, 1.0);
+pub const HIGHLIGHT_COLOR: Vec4 = Vec4::new(0.0, 1.0, 1.0, 0.4);
+pub const GRID_THICKNESS_PX: f32 = 1.0;
+pub const GRID_SPACING_PX: f32 = 0.1;
+pub const ARROW_THICKNESS_PX: f32 = 1.0;
+pub const ARROW_HEAD_WIDTH_PX: f32 = 4.0;
+pub const ARROW_HEAD_HEIGHT_PX: f32 = 10.0;
+pub const HIGHLIGHT_SQUARES: f32 = 3.0;
+pub const ARROW_SCALE: f32 = 25.0;
+pub const MIN_ARROW_SCALE: f32 = 0.7;
+pub const COLOR_VALUE: f32 = 2.5;
+
+// --- General Code ---
 
 // These consstants are also defined inside of the rust code and passed in as a storage buffer.
 #[derive(Copy, Clone, Pod, Zeroable)]

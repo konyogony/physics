@@ -4,8 +4,7 @@ use crate::wgpu_renderer::particle_manager::ParticleManager;
 use crate::wgpu_renderer::pipelines::electric::ElectricPipeline;
 use crate::wgpu_renderer::pipelines::grid::GridPipeline;
 use crate::wgpu_renderer::pipelines::particle::ParticlePipeline;
-use shaders::Charge;
-use shaders::shared::ShaderConstants;
+use shaders_shared::{Charge, ShaderConstants};
 use wgpu::wgt::CommandEncoderDescriptor;
 use wgpu::{
     Color, ComputePassDescriptor, Device, LoadOp, Operations, Queue, RenderPassColorAttachment,

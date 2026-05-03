@@ -12,7 +12,7 @@ workspace = true
 
 [dependencies]
 # shader crate
-shaders = { path = "../shaders" }
+shaders-shared = { path = "../shaders/shared" }
 
 # API
 wgpu.workspace = true
