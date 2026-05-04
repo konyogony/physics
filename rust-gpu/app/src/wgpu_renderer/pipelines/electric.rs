@@ -4,6 +4,7 @@ use crate::wgpu_renderer::bind_group::{
 use shaders_shared::ShaderConstants;
 use wgpu::{ComputePass, Device, PipelineLayoutDescriptor, include_spirv};
 use wgpu::{ComputePipeline, ComputePipelineDescriptor};
+use winit::dpi::PhysicalSize;
 
 pub struct ElectricPipeline {
     compute_potential_pipeline: ComputePipeline,
@@ -57,13 +58,13 @@ impl ElectricPipeline {
         cpass: &mut ComputePass<'_>,
         constants_bind_groups: &ConstantsBindGroups,
         electric_bind_groups: &ElectricBindGroups,
-        (width, height): (u32, u32),
+        size: PhysicalSize<u32>,
     ) {
         cpass.set_pipeline(&self.compute_potential_pipeline);
         cpass.set_bind_group(0, &constants_bind_groups.constants, &[]);
         cpass.set_bind_group(1, &electric_bind_groups.electric, &[]);
 
-        cpass.dispatch_workgroups(width.div_ceil(16), height.div_ceil(16), 1);
+        cpass.dispatch_workgroups(size.width.div_ceil(16), size.height.div_ceil(16), 1);
     }
 
     pub fn compute_field(
@@ -71,12 +72,12 @@ impl ElectricPipeline {
         cpass: &mut ComputePass<'_>,
         constants_bind_groups: &ConstantsBindGroups,
         electric_bind_groups: &ElectricBindGroups,
-        (width, height): (u32, u32),
+        size: PhysicalSize<u32>,
     ) {
         cpass.set_pipeline(&self.compute_field_pipeline);
         cpass.set_bind_group(0, &constants_bind_groups.constants, &[]);
         cpass.set_bind_group(1, &electric_bind_groups.electric, &[]);
 
-        cpass.dispatch_workgroups(width.div_ceil(16), height.div_ceil(16), 1);
+        cpass.dispatch_workgroups(size.width.div_ceil(16), size.height.div_ceil(16), 1);
     }
 }

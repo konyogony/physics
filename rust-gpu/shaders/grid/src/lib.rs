@@ -63,11 +63,12 @@ pub fn grid_fs(
             // Evaluate the ELECTRIC FIELD from the starting point to acquire final pos
             // (relative to the start pos)
             // Also convert back to space coordinates
-            let space_coords = UVec2::new(
-                (start_point.x - (constants.width as f32) / 2.0) as u32,
-                (start_point.y - (constants.height as f32) / 2.0) as u32,
-            );
-            let index = space_coords.x + space_coords.y * constants.width;
+            let x = (start_point.x + constants.width as f32 / 2.0) as i32;
+            let y = (-start_point.y + constants.height as f32 / 2.0) as i32;
+            if x < 0 || y < 0 || x > constants.width as i32 || y > constants.height as i32 {
+                return;
+            }
+            let index = x + y * constants.width as i32;
             let field_reading = electric_field[index as usize].field;
             let vec = Vec2::new(field_reading[0], field_reading[1]);
             let len = vec.length().max(0.001);

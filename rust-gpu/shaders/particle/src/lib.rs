@@ -77,12 +77,18 @@ pub fn particle_cs(
     // Do math only if its within the range of particles that actually exist
     if particle_index < constants.num_particles as usize {
         let mut particle = input[particle_index];
-        let index = particle.position[0] + particle.position[1] * constants.width as f32;
+        let px = particle.position[0] as u32;
+        let py = particle.position[1] as u32;
+        let index = (px + py * constants.width) as usize;
+        if px >= constants.width || py >= constants.height {
+            output[particle_index] = particle;
+            return;
+        }
         // Calculate the velocity of the particle at its specific point in space & time.
-        let velocity = electric_field[index as usize].field;
+        let velocity = electric_field[index].field;
         // Apply that velocity
         particle.position[0] += velocity[0] * constants.dt * TIME_SCALE;
-        particle.position[1] -= velocity[1] * constants.dt * TIME_SCALE;
+        particle.position[1] += velocity[1] * constants.dt * TIME_SCALE;
 
         // Not to lose data, we create mut var, and we assign whole particle to the output.
         output[particle_index] = particle;

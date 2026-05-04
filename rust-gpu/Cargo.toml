@@ -34,8 +34,8 @@ pollster = "0.4.0"
 
 # rust-gpu
 # While `cargo-gpu` is backwards compatible with older rust-gpu versions, easiest is to just match the versions exactly.
-cargo-gpu-install = { git = "https://github.com/Rust-GPU/rust-gpu", rev = "8494942c0be705049514c2515761da7ef24fcbeb" }
-spirv-std = { git = "https://github.com/Rust-GPU/rust-gpu", rev = "8494942c0be705049514c2515761da7ef24fcbeb" }
+cargo-gpu-install = { git = "https://github.com/Rust-GPU/rust-gpu", rev = "c904e5c039676df3409dd7aa61119102109af921" }
+spirv-std = { git = "https://github.com/Rust-GPU/rust-gpu", rev = "c904e5c039676df3409dd7aa61119102109af921" }
 
 # other
 glam = { version = "0.32.0", default-features = false }

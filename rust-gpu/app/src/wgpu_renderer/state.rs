@@ -82,13 +82,16 @@ impl State {
             surface,
         );
 
+        let size = swapchain.get_size();
+        println!("{:?}", size);
+
         let charges = vec![Charge {
-            position: [200.0, 500.0],
+            position: [size.width as f32 / 2.0, size.height as f32 / 2.0],
             charge: 1.0,
         }];
 
         // Create a renderer
-        let renderer = Renderer::new(device, queue, swapchain.get_format(), (2560, 1440), charges)?;
+        let renderer = Renderer::new(device, queue, swapchain.get_format(), size, charges)?;
 
         // Create a mouse manager-ish
         let mouse = Mouse::new();
@@ -154,7 +157,21 @@ impl State {
             }
             | WindowEvent::CloseRequested => event_loop.exit(),
             // If a window is resized, we have to recreate the surface
-            WindowEvent::Resized(_) => self.swapchain.set_should_recreate_true(),
+            WindowEvent::Resized(new_size) => {
+                self.swapchain.set_should_recreate_true();
+
+                let charges = vec![Charge {
+                    position: [new_size.width as f32 / 2.0, new_size.height as f32 / 2.0],
+                    charge: 1.0,
+                }];
+
+                self.renderer.electric_manger.resize(
+                    &self.renderer.device,
+                    new_size,
+                    &self.renderer.global_bind_group_layout,
+                    charges,
+                );
+            }
             _ => (),
         }
         Ok(())

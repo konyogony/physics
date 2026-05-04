@@ -10,6 +10,7 @@ use wgpu::{
     Color, ComputePassDescriptor, Device, LoadOp, Operations, Queue, RenderPassColorAttachment,
     RenderPassDescriptor, StoreOp, TextureFormat, TextureView,
 };
+use winit::dpi::PhysicalSize;
 
 // This file is basically responsible for first of all
 // Renderer holds the device & queue + layout & pipeline, responsible for rendering
@@ -17,11 +18,11 @@ pub struct Renderer {
     pub device: Device,
     pub queue: Queue,
     // Basically responsible for ALL bind group layouts and the creation of bind groups themselves
-    global_bind_group_layout: GlobalBindGroupLayout,
+    pub global_bind_group_layout: GlobalBindGroupLayout,
     grid_pipeline: GridPipeline,
     particle_pipeline: ParticlePipeline,
     electric_pipeline: ElectricPipeline,
-    electric_manger: ElectricManager,
+    pub electric_manger: ElectricManager,
     pub particle_manager: ParticleManager,
 }
 
@@ -30,7 +31,7 @@ impl Renderer {
         device: Device,
         queue: Queue,
         out_format: TextureFormat,
-        (width, height): (u32, u32),
+        size: PhysicalSize<u32>,
         charges_vec: Vec<Charge>,
     ) -> anyhow::Result<Self> {
         // Create all the bind groups first. Global bind group just refers to the one holding
@@ -48,12 +49,8 @@ impl Renderer {
 
         let electric_pipeline = ElectricPipeline::new(&device, &global_bind_group_layout)?;
 
-        let electric_manger = ElectricManager::new(
-            &device,
-            &global_bind_group_layout,
-            (width, height),
-            charges_vec,
-        );
+        let electric_manger =
+            ElectricManager::new(&device, &global_bind_group_layout, size, charges_vec);
 
         // Pass it in
         Ok(Self {

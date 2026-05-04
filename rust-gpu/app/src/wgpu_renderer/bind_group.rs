@@ -5,6 +5,7 @@ use wgpu::{
     BufferDescriptor, BufferUsages, Device, ShaderStages,
     util::{BufferInitDescriptor, DeviceExt},
 };
+use winit::dpi::PhysicalSize;
 
 // Global Bind Group LAYOUT struct, will hold layouts for each bind group.
 // To create a bind group, a layout is needed. Layout shows how data is arranged,
@@ -347,7 +348,7 @@ impl GlobalBindGroupLayout {
                     }),
                 },
                 BindGroupEntry {
-                    binding: 1,
+                    binding: 2,
                     resource: BindingResource::Buffer(BufferBinding {
                         buffer: &electric_storage_buffers.field,
                         offset: 0,
@@ -363,10 +364,10 @@ impl GlobalBindGroupLayout {
     pub fn create_electric_buffers(
         &self,
         device: &Device,
-        (width, height): (u32, u32),
+        size: PhysicalSize<u32>,
         charges_vec: Vec<Charge>,
     ) -> ElectricStorageBuffers {
-        let max_index = width * height;
+        let max_index = size.width * size.height;
 
         let charges = device.create_buffer_init(&BufferInitDescriptor {
             label: Some("ChargeBuffer"),
