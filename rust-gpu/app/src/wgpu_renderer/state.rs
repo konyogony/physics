@@ -160,16 +160,10 @@ impl State {
             WindowEvent::Resized(new_size) => {
                 self.swapchain.set_should_recreate_true();
 
-                let charges = vec![Charge {
-                    position: [new_size.width as f32 / 2.0, new_size.height as f32 / 2.0],
-                    charge: 1.0,
-                }];
-
                 self.renderer.electric_manger.resize(
                     &self.renderer.device,
                     new_size,
                     &self.renderer.global_bind_group_layout,
-                    charges,
                 );
             }
             _ => (),

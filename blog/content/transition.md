@@ -1,4 +1,5 @@
 ---
+order: 2
 title: Transitioning to rust-gpu
 ---
 
@@ -9,7 +10,7 @@ However, I was heavily limited since all my calculations were done on the CPU.
 I did not feel like extending using [Nannou](https://nannou.cc/) and its [wgpu](https://wgpu.rs/) API, therefore I decided to go with a cleaner option.
 There exists a library, originally developed by [Embark](https://www.embark-studios.com/) (<3), called [rust-gpu](https://rust-gpu.github.io/).
 This library allows us to write shader code directly using rust and its range of amazing systems.
-In this section I will cover how I was able to transition to using shaders to render my simulation more efficiently, as well as re-creating the electric field by applying Coulomb's Law.
+In this section I will solely cover how I was able to transition to using shaders to render my simulation more efficiently.
 
 # Shaders
 
@@ -348,51 +349,9 @@ However, the buffer is created empty, therefore we need to find a way how to inp
 We will use the mouse position as the current particles position. To achieve that we will use the `WindowEvent::CursorMoved` event to recieve the current mouse position,
 and pass in the `Mouse` struct which persists the position and mouse states. Then, when the button mouse state changes we modify the particle buffer and update the number of particles.
 
-# Electrostatics and the Coulombs Law
+# Conclusion
 
-Now, lets talk physics, and let it be something new. The study of electrostatics involves charges, electric and magnetic fieds that dont alternate over time,
-hence the suffix statics. This means that the 4 Maxwell's equations simplfy to:
-
-$$
-\begin{aligned}
-\vec{\nabla} \cdot \vec{E} &= \frac{\rho}{\epsilon_0} \\
-\vec{\nabla} \cdot \vec{B} &= 0 \\
-\vec{\nabla} \times \vec{E} &= 0 \\
-\vec{\nabla} \times \vec{B} &= \frac{\vec{j}}{\epsilon_0}
-\end{aligned}
-$$
-
-What this means in practice is that it is much easier to compute and deal with charges that are not moving.
-Let us talk about the Coulombs Law now. The Coulomb law talks about the force on exerted on two charges, and is equal to the following expression.
-
-$$
-\vec{F_1} = \frac{1}{4\pi \epsilon_0} \, \frac{q_1 \, q_2}{r^2_{12}} \, \hat{e_{12}} = -\vec{F_2}
-$$
-
-Where $\hat{e_{12}}$ represents the unit vector from $q_1$ to $q_2$. An electric field is defined as the force per unit charge, therefore if we take $q_1$ as the reference, the electric field becomes:
-
-$$
-\vec{E} = \frac{1}{4\pi \epsilon_0} \, \frac{q_2}{r^2_{12}} \, \hat{e_{12}}
-$$
-
-This electric field can also be generalised for containing multiple charges, where we simply iterate over every charge.
-
-$$
-\vec{E} = \frac{1}{4\pi \epsilon_0} \, \sum_j \frac{q_j}{r^2_{1j}} \, \hat{e_{1j}}
-$$
-
-However, we can define the electric field in terms of a scalar value, the electric potential. This is usually prefered since you will only have to compute a single
-scalar value instead of multiple separate directions. The electric potential is defined as
-
-$$
-\phi = \frac{1}{4\pi \epsilon_0} \, \sum_j \frac{q_j}{r_j}
-$$
-
-and the negative gradient of $\phi$ relates directly to the electric field.
-
-$$
-\vec{E} = - \vec{\nabla} \phi
-$$
-
-By having 2 compute shaders that are responsible for firstly going through each charge and calculating the electric potential, and then utilising special
-compute science techniques to calculate the gradient of the scalar field.
+By tranisition from Nannou and CPU bound computations, we are now able to create pipelines and use shaders to accelerate our program.
+Shaders are able to work on many groups of pixels in parallel, which provokes efficiency in the program.
+There are multiple types of shaders, each responsible for different tasks, such as the fragment, vertex and compute shader.
+Signed Distance Fields can be used to draw objects, lines and geometry onto the screen by applying vector algebra.

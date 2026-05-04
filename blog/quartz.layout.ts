@@ -37,7 +37,28 @@ export const defaultContentPageLayout: PageLayout = {
                 { Component: Component.ReaderMode() },
             ],
         }),
-        Component.Explorer(),
+        Component.Explorer({
+            title: "Explorer",
+            folderClickBehavior: "collapse",
+            folderDefaultState: "collapsed",
+            useSavedState: true,
+            sortFn: (a, b) => {
+                if (a.isFolder && !b.isFolder) return -1
+                if (!a.isFolder && b.isFolder) return 1
+
+                // This data property is what we just fixed in Step 1
+                const aOrder = a.data?.order ?? 100
+                const bOrder = b.data?.order ?? 100
+
+                if (aOrder !== bOrder) {
+                    return aOrder - bOrder
+                }
+                return a.displayName.localeCompare(b.displayName, undefined, {
+                    numeric: true,
+                    sensitivity: "base",
+                })
+            },
+        }),
     ],
     right: [
         Component.Graph(),
