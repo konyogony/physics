@@ -7,9 +7,8 @@ use winit::{
 };
 
 mod bind_group;
-mod electric_manager;
+mod managers;
 mod mouse;
-mod particle_manager;
 mod pipelines;
 mod renderer;
 mod state;

@@ -41,6 +41,8 @@ impl ParticleManager {
             (self.current_num_of_particles as usize * std::mem::size_of::<Particle>()) as u64;
         let data = bytemuck::bytes_of(&particle);
 
+        println!("{:?}, {}", position, position[0] * position[1] * 2560.0);
+
         // We can INSERT specific pieces of data into the buffer.
         queue.write_buffer(&self.particle_buffers.particles_buffer_a, offset, data);
         queue.write_buffer(&self.particle_buffers.particles_buffer_b, offset, data);

@@ -68,14 +68,14 @@ pub fn electric_field_cs(
 
     let max_index = constants.width as i32 * constants.height as i32;
 
-    let up_index = index + H * constants.width as i32;
-    let down_index = index - H * constants.width as i32;
-    let right_index = index + H;
-    let left_index = index - H;
+    let up_index = (index + H * constants.width as i32).min(max_index - 1);
+    let down_index = (index - H * constants.width as i32).max(0);
+    let right_index = (index + H).min(max_index - 1);
+    let left_index = (index - H).max(0);
 
-    if left_index < 0 || down_index < 0 || right_index > max_index || up_index > max_index {
-        return;
-    }
+    //     if left_index < 0 || down_index < 0 || right_index > max_index || up_index > max_index {
+    //         return;
+    //     }
 
     let up_sample = electric_potential[up_index as usize];
     let down_sample = electric_potential[down_index as usize];

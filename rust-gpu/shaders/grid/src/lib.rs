@@ -6,7 +6,7 @@
 // They can recieve inputs and give outputs by making them mutable and using pointers.
 // No std librarires are allowed here.
 
-use glam::{UVec2, Vec2, Vec4, Vec4Swizzles};
+use glam::{Vec2, Vec4, Vec4Swizzles};
 use shaders_shared::{
     ARROW_HEAD_HEIGHT_PX, ARROW_HEAD_WIDTH_PX, ARROW_SCALE, ARROW_THICKNESS_PX, AXIS_COLOR,
     BG_COLOR, COLOR_VALUE, Field, GRID_COLOR, GRID_SPACING_PX, GRID_THICKNESS_PX, HIGHLIGHT_COLOR,
@@ -43,7 +43,34 @@ pub fn grid_fs(
     let px_y = -centered_uv.y * constants.height as f32;
 
     // Draw the grid
-    Grid::draw_grid(px_x, px_y, output);
+    {
+        let output_color = BG_COLOR.xyz();
+
+        // Get how many times spacing wraps.
+        let grid_distance_x = (px_x % GRID_SPACING_PX).abs();
+        let grid_distance_y = (px_y % GRID_SPACING_PX).abs();
+        // Get closest one
+        let grid_distance = grid_distance_x.min(grid_distance_y);
+        // Make sure lines dont look ugly and appear on all screen sizes.
+        let grid_alpha = antialias(grid_distance, GRID_THICKNESS_PX);
+
+        // Same for highlights, but different scale
+        let highlight_distance_x = (px_x % (GRID_SPACING_PX * HIGHLIGHT_SQUARES)).abs();
+        let highlight_distance_y = (px_y % (GRID_SPACING_PX * HIGHLIGHT_SQUARES)).abs();
+        let highlight_distance = highlight_distance_x.min(highlight_distance_y);
+        let highlight_alpha = antialias(highlight_distance, GRID_THICKNESS_PX);
+
+        let axis_distance = px_x.abs().min(px_y.abs());
+        let axis_alpha = antialias(axis_distance, GRID_THICKNESS_PX);
+
+        // Now the alpha channels are applied SEPERATLY to preserve the original alpha
+        // Lerp allows us to apply a mask with specific colors.
+        *output = output_color
+            .lerp(GRID_COLOR.xyz(), grid_alpha * GRID_COLOR.w)
+            .lerp(HIGHLIGHT_COLOR.xyz(), highlight_alpha * HIGHLIGHT_COLOR.w)
+            .lerp(AXIS_COLOR.xyz(), axis_alpha * AXIS_COLOR.w)
+            .extend(1.0);
+    }
 
     let current_pos = Vec2::new(px_x, px_y);
     // Drawing the vectors
@@ -63,10 +90,13 @@ pub fn grid_fs(
             // Evaluate the ELECTRIC FIELD from the starting point to acquire final pos
             // (relative to the start pos)
             // Also convert back to space coordinates
-            let x = (start_point.x + constants.width as f32 / 2.0) as i32;
-            let y = (-start_point.y + constants.height as f32 / 2.0) as i32;
-            if x < 0 || y < 0 || x > constants.width as i32 || y > constants.height as i32 {
-                return;
+            let x = ((start_point.x + constants.width as f32 / 2.0) as i32)
+                .min(constants.width as i32 - 1_i32);
+            let y = ((-start_point.y + constants.height as f32 / 2.0) as i32)
+                .min(constants.height as i32 - 1_i32);
+
+            if x < 0 || y < 0 || x >= constants.width as i32 || y >= constants.height as i32 {
+                continue;
             }
             let index = x + y * constants.width as i32;
             let field_reading = electric_field[index as usize].field;
@@ -111,39 +141,5 @@ pub fn grid_fs(
             *output = output.lerp(color, line_alpha);
             *output = output.lerp(color, triangle_alpha)
         }
-    }
-}
-
-// TODO: Consider removing
-pub struct Grid;
-
-impl Grid {
-    pub fn draw_grid(px_x: f32, px_y: f32, output: &mut Vec4) {
-        let output_color = BG_COLOR.xyz();
-
-        // Get how many times spacing wraps.
-        let grid_distance_x = (px_x % GRID_SPACING_PX).abs();
-        let grid_distance_y = (px_y % GRID_SPACING_PX).abs();
-        // Get closest one
-        let grid_distance = grid_distance_x.min(grid_distance_y);
-        // Make sure lines dont look ugly and appear on all screen sizes.
-        let grid_alpha = antialias(grid_distance, GRID_THICKNESS_PX);
-
-        // Same for highlights, but different scale
-        let highlight_distance_x = (px_x % (GRID_SPACING_PX * HIGHLIGHT_SQUARES)).abs();
-        let highlight_distance_y = (px_y % (GRID_SPACING_PX * HIGHLIGHT_SQUARES)).abs();
-        let highlight_distance = highlight_distance_x.min(highlight_distance_y);
-        let highlight_alpha = antialias(highlight_distance, GRID_THICKNESS_PX);
-
-        let axis_distance = px_x.abs().min(px_y.abs());
-        let axis_alpha = antialias(axis_distance, GRID_THICKNESS_PX);
-
-        // Now the alpha channels are applied SEPERATLY to preserve the original alpha
-        // Lerp allows us to apply a mask with specific colors.
-        *output = output_color
-            .lerp(GRID_COLOR.xyz(), grid_alpha * GRID_COLOR.w)
-            .lerp(HIGHLIGHT_COLOR.xyz(), highlight_alpha * HIGHLIGHT_COLOR.w)
-            .lerp(AXIS_COLOR.xyz(), axis_alpha * AXIS_COLOR.w)
-            .extend(1.0);
     }
 }

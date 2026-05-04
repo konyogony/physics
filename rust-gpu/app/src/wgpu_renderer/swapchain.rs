@@ -60,7 +60,7 @@ impl<'a> SwapchainManager<'a> {
         self.should_recreate = true;
     }
 
-    // Getters
+    // Getters (which i hate but this came as default so im not changing it..)
     pub fn get_format(&self) -> TextureFormat {
         self.format
     }

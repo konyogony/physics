@@ -1,6 +1,6 @@
 use crate::wgpu_renderer::bind_group::GlobalBindGroupLayout;
-use crate::wgpu_renderer::electric_manager::ElectricManager;
-use crate::wgpu_renderer::particle_manager::ParticleManager;
+use crate::wgpu_renderer::managers::electric::ElectricManager;
+use crate::wgpu_renderer::managers::particle::ParticleManager;
 use crate::wgpu_renderer::pipelines::electric::ElectricPipeline;
 use crate::wgpu_renderer::pipelines::grid::GridPipeline;
 use crate::wgpu_renderer::pipelines::particle::ParticlePipeline;
