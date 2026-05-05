@@ -107,7 +107,7 @@ pub fn electric_field_cs(
 ) {
     // Method of central differences to get gradient at any single point.
     // f'(x) = (f(x+h) - f(x-h)) / 2h
-    // Then by applying coulombs law, we know that 𝐄⃗=∇⃗φ
+    // Then by applying coulombs law, we know that 𝐄⃗=-∇⃗φ
     // E = -< ∂φ / ∂x, ∂φ / ∂y>
     let x = global_invocation_id.x as i32;
     let y = global_invocation_id.y as i32;
