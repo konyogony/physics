@@ -9,7 +9,7 @@
 use glam::{Vec2, Vec4, Vec4Swizzles};
 use shaders_shared::{
     ARROW_HEAD_HEIGHT_PX, ARROW_HEAD_WIDTH_PX, ARROW_SCALE, ARROW_THICKNESS_PX, AXIS_COLOR,
-    BG_COLOR, COLOR_VALUE, Field, GRID_COLOR, GRID_SPACING_PX, GRID_THICKNESS_PX, HIGHLIGHT_COLOR,
+    BG_COLOR, Field, GRID_COLOR, GRID_SPACING_PX, GRID_THICKNESS_PX, HIGHLIGHT_COLOR,
     HIGHLIGHT_SQUARES, MIN_ARROW_SCALE, SDF, ShaderConstants, antialias, antialias_no_fwidth, hsv,
     map_range, smoothstep,
 };
@@ -115,7 +115,7 @@ pub fn grid_fs(
 
             // Same logic as in nannou version,
             // we map and scale and do stuff to the magnitude to acquire a color value.
-            let strength = len / (len + COLOR_VALUE);
+            let strength = len / (len + constants.color_value);
             let t = smoothstep(0.0, 1.0, strength);
             let t_clamped = t.clamp(MIN_ARROW_SCALE, 1.0);
             let hue = map_range(t, 0.0, 1.0, 0.6, 0.0);

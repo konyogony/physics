@@ -77,10 +77,10 @@ pub fn particle_cs(
     // Do math only if its within the range of particles that actually exist
     if particle_index < constants.num_particles as usize {
         let mut particle = input[particle_index];
-        let px = particle.position[0] as u32;
-        let py = particle.position[1] as u32;
-        let index = (px + py * constants.width) as usize;
-        if px >= constants.width || py >= constants.height {
+        let px = particle.position[0] as i32;
+        let py = particle.position[1] as i32;
+        let index = (px as u32 + py as u32 * constants.width) as usize;
+        if px < 0 || py < 0 || px >= constants.width as i32 || py >= constants.height as i32 {
             output[particle_index] = particle;
             return;
         }
@@ -88,7 +88,7 @@ pub fn particle_cs(
         let velocity = electric_field[index].field;
         // Apply that velocity
         particle.position[0] += velocity[0] * constants.dt * TIME_SCALE;
-        particle.position[1] += velocity[1] * constants.dt * TIME_SCALE;
+        particle.position[1] -= velocity[1] * constants.dt * TIME_SCALE;
 
         // Not to lose data, we create mut var, and we assign whole particle to the output.
         output[particle_index] = particle;

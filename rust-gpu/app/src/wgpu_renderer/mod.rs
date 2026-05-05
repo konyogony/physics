@@ -7,6 +7,7 @@ use winit::{
 };
 
 mod bind_group;
+mod keyboard;
 mod managers;
 mod mouse;
 mod pipelines;

@@ -1,6 +1,7 @@
-use crate::wgpu_renderer::mouse::Mouse;
+use crate::wgpu_renderer::keyboard::InputActions;
 use crate::wgpu_renderer::renderer::Renderer;
 use crate::wgpu_renderer::swapchain::SwapchainManager;
+use crate::wgpu_renderer::{keyboard::Keyboard, mouse::Mouse};
 use anyhow::Context;
 use shaders_shared::{Charge, ShaderConstants};
 use std::sync::Arc;
@@ -22,7 +23,11 @@ pub struct State {
     window: Arc<Window>,
     renderer: Renderer,
     swapchain: SwapchainManager<'static>,
+    // This will just contain mock empty values that i can change dynamically and then pipe into
+    // the real shader constants, yes, a hack, but whatever.
+    shader_constants: ShaderConstants,
     mouse: Mouse,
+    keyboard: Keyboard,
 }
 
 impl State {
@@ -88,6 +93,7 @@ impl State {
         let charges = vec![Charge {
             position: [size.width as f32 / 2.0, size.height as f32 / 2.0],
             charge: 1.0,
+            _pad: 0.0,
         }];
 
         // Create a renderer
@@ -95,6 +101,7 @@ impl State {
 
         // Create a mouse manager-ish
         let mouse = Mouse::new();
+        let keyboard = Keyboard::new();
 
         // Initialise the state
         Ok(Self {
@@ -102,9 +109,11 @@ impl State {
             last_frame: Instant::now(),
             is_full_screen: false,
             mouse,
+            keyboard,
             window,
             swapchain,
             renderer,
+            shader_constants: ShaderConstants::default(),
         })
     }
 
@@ -122,29 +131,27 @@ impl State {
                 self.mouse
                     .update_pos([position.x as f32, position.y as f32]);
             }
+
             WindowEvent::MouseInput { state, button, .. } => {
                 self.mouse.update_button(button, state);
-            }
-            WindowEvent::KeyboardInput {
-                event:
-                    KeyEvent {
-                        logical_key: Key::Named(NamedKey::F11),
-                        state: ElementState::Pressed,
-                        ..
-                    },
-                ..
-            } => {
-                match self.is_full_screen {
-                    true => self.window.set_fullscreen(None),
-                    false => {
-                        self.window
-                            .set_fullscreen(Some(winit::window::Fullscreen::Borderless(
-                                self.window.current_monitor(),
-                            )))
-                    }
+
+                if self.mouse.buttons_state.lmb == ElementState::Pressed {
+                    self.renderer
+                        .particle_manager
+                        .add_particle(&self.renderer.queue, self.mouse.position);
                 }
-                self.is_full_screen = !self.is_full_screen
+
+                if self.mouse.buttons_state.rmb == ElementState::Pressed {
+                    self.renderer
+                        .electric_manager
+                        .add_charge(&self.renderer.queue, self.mouse.position);
+                }
+
+                //if self.mouse.buttons_state.rmb == ElementState::Pressed {
+                //    self.renderer.particle_manager.remove_all_particles();
+                //}
             }
+
             // ESC or CloseRequested exit the event loop
             WindowEvent::KeyboardInput {
                 event:
@@ -156,32 +163,72 @@ impl State {
                 ..
             }
             | WindowEvent::CloseRequested => event_loop.exit(),
+
             // If a window is resized, we have to recreate the surface
             WindowEvent::Resized(new_size) => {
                 self.swapchain.set_should_recreate_true();
 
-                self.renderer.electric_manger.resize(
+                self.renderer.electric_manager.resize(
                     &self.renderer.device,
+                    &self.renderer.queue,
                     new_size,
                     &self.renderer.global_bind_group_layout,
                 );
+            }
+
+            WindowEvent::KeyboardInput { event, .. } => {
+                self.keyboard.update_key(event.physical_key, event.state);
+
+                let input_actions = self
+                    .keyboard
+                    .get_input_actions(event.physical_key, event.state);
+                self.handle_input_actions(input_actions);
             }
             _ => (),
         }
         Ok(())
     }
 
-    pub fn handle_redraw(&mut self) -> anyhow::Result<()> {
-        if self.mouse.buttons_state.lmb == ElementState::Pressed {
-            self.renderer
-                .particle_manager
-                .add_particle(&self.renderer.queue, self.mouse.position);
+    pub fn handle_input_actions(&mut self, input_actions: InputActions) {
+        if input_actions.toggle_fullscreen {
+            match self.is_full_screen {
+                true => self.window.set_fullscreen(None),
+                false => self
+                    .window
+                    .set_fullscreen(Some(winit::window::Fullscreen::Borderless(
+                        self.window.current_monitor(),
+                    ))),
+            }
+            self.is_full_screen = !self.is_full_screen
         }
 
-        if self.mouse.buttons_state.rmb == ElementState::Pressed {
+        if input_actions.increment_color_fast {
+            self.shader_constants.color_value += 5.0;
+        }
+        if input_actions.increment_color {
+            self.shader_constants.color_value += 0.5;
+        }
+
+        if input_actions.decrement_color_fast {
+            self.shader_constants.color_value -= 5.0;
+        }
+        if input_actions.decrement_color {
+            self.shader_constants.color_value -= 0.5;
+        }
+
+        if input_actions.remove_particles {
             self.renderer.particle_manager.remove_all_particles();
         }
+        if input_actions.remove_charges {
+            self.renderer.electric_manager.remove_all_charges();
+        }
 
+        if input_actions.toggle_charge {
+            self.renderer.electric_manager.toggle_charge();
+        }
+    }
+
+    pub fn handle_redraw(&mut self) -> anyhow::Result<()> {
         let dt = self.last_frame.elapsed().as_secs_f32();
         // Update the last frame feild.
         self.last_frame = Instant::now();
@@ -199,8 +246,13 @@ impl State {
                     aspect_ratio: render_target.texture().width() as f32
                         / render_target.texture().height() as f32,
                     num_particles: self.renderer.particle_manager.current_num_of_particles,
-                    epsilon_naught: ((8.9_f32).powi(-12)),
-                    num_charges: 1,
+                    // This is the real life value, however, its NOT going to work great for
+                    // pixels, hence we will use a different one.
+                    //epsilon_naught: ((8.9_f32).powi(-12)),
+                    epsilon_naught: ((8.9_f32).powi(-8)),
+                    num_charges: self.renderer.electric_manager.charges.len() as u32,
+                    color_value: self.shader_constants.color_value,
+                    _pad: [0.0; 3],
                 },
                 render_target,
             )

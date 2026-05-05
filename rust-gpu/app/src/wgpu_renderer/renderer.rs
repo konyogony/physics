@@ -22,7 +22,7 @@ pub struct Renderer {
     grid_pipeline: GridPipeline,
     particle_pipeline: ParticlePipeline,
     electric_pipeline: ElectricPipeline,
-    pub electric_manger: ElectricManager,
+    pub electric_manager: ElectricManager,
     pub particle_manager: ParticleManager,
 }
 
@@ -47,10 +47,16 @@ impl Renderer {
         // Responsible for persistant buffers, storing count, etc..
         let particle_manager = ParticleManager::new(&device, &global_bind_group_layout);
 
-        let electric_pipeline = ElectricPipeline::new(&device, &global_bind_group_layout)?;
+        let electric_pipeline =
+            ElectricPipeline::new(&device, &global_bind_group_layout, out_format)?;
 
-        let electric_manger =
-            ElectricManager::new(&device, &global_bind_group_layout, size, charges_vec);
+        let electric_manager = ElectricManager::new(
+            &device,
+            &queue,
+            &global_bind_group_layout,
+            size,
+            charges_vec,
+        );
 
         // Pass it in
         Ok(Self {
@@ -59,7 +65,7 @@ impl Renderer {
             grid_pipeline,
             particle_pipeline,
             particle_manager,
-            electric_manger,
+            electric_manager,
             device,
             queue,
         })
@@ -100,8 +106,8 @@ impl Renderer {
         self.electric_pipeline.compute_potential(
             &mut cpass,
             &constant_bind_groups,
-            &self.electric_manger.electric_bind_groups,
-            self.electric_manger.size,
+            &self.electric_manager.electric_bind_groups,
+            self.electric_manager.size,
         );
         drop(cpass);
 
@@ -113,15 +119,15 @@ impl Renderer {
         self.electric_pipeline.compute_field(
             &mut cpass,
             &constant_bind_groups,
-            &self.electric_manger.electric_bind_groups,
-            self.electric_manger.size,
+            &self.electric_manager.electric_bind_groups,
+            self.electric_manager.size,
         );
 
         self.particle_pipeline.compute(
             &mut cpass,
             &constant_bind_groups,
             &self.particle_manager.particle_bind_groups,
-            &self.electric_manger.electric_bind_groups,
+            &self.electric_manager.electric_bind_groups,
             self.particle_manager.current_num_of_particles,
         );
         // Dont forget to drop after each pass
@@ -149,7 +155,7 @@ impl Renderer {
         self.grid_pipeline.draw(
             &mut rpass,
             &constant_bind_groups,
-            &self.electric_manger.electric_bind_groups,
+            &self.electric_manager.electric_bind_groups,
         );
 
         self.particle_pipeline.draw(
@@ -157,6 +163,13 @@ impl Renderer {
             &constant_bind_groups,
             &self.particle_manager.particle_bind_groups,
             self.particle_manager.current_num_of_particles,
+        );
+
+        self.electric_pipeline.draw(
+            &mut rpass,
+            &constant_bind_groups,
+            &self.electric_manager.electric_bind_groups,
+            self.electric_manager.charges.len() as u32,
         );
         drop(rpass);
 

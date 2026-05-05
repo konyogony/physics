@@ -33,15 +33,13 @@ impl ParticleManager {
         let particle = Particle {
             position,
             velocity: [0.0; 2],
-            color: [1.0, 1.0, 1.0],
+            color: [0.2, 0.4, 1.0],
             _pad: 0.0,
         };
 
         let offset =
             (self.current_num_of_particles as usize * std::mem::size_of::<Particle>()) as u64;
         let data = bytemuck::bytes_of(&particle);
-
-        println!("{:?}, {}", position, position[0] * position[1] * 2560.0);
 
         // We can INSERT specific pieces of data into the buffer.
         queue.write_buffer(&self.particle_buffers.particles_buffer_a, offset, data);

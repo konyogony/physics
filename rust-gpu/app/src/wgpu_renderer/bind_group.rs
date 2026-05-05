@@ -2,7 +2,7 @@ use shaders_shared::{Charge, Field, ShaderConstants};
 use wgpu::{
     BindGroup, BindGroupDescriptor, BindGroupEntry, BindGroupLayout, BindGroupLayoutDescriptor,
     BindGroupLayoutEntry, BindingResource, BindingType, Buffer, BufferBinding, BufferBindingType,
-    BufferDescriptor, BufferUsages, Device, ShaderStages,
+    BufferDescriptor, BufferUsages, Device, Queue, ShaderStages,
     util::{BufferInitDescriptor, DeviceExt},
 };
 use winit::dpi::PhysicalSize;
@@ -365,15 +365,20 @@ impl GlobalBindGroupLayout {
         &self,
         device: &Device,
         size: PhysicalSize<u32>,
+        queue: &Queue,
+        buffer_size: u64,
         charges_vec: Vec<Charge>,
     ) -> ElectricStorageBuffers {
         let max_index = size.width * size.height;
 
-        let charges = device.create_buffer_init(&BufferInitDescriptor {
+        let charges = device.create_buffer(&BufferDescriptor {
             label: Some("ChargeBuffer"),
             usage: BufferUsages::COPY_DST | BufferUsages::STORAGE,
-            contents: bytemuck::cast_slice(&charges_vec),
+            size: buffer_size,
+            mapped_at_creation: false,
         });
+
+        queue.write_buffer(&charges, 0, bytemuck::cast_slice(&charges_vec));
 
         let potential = device.create_buffer(&BufferDescriptor {
             label: Some("PotentialBuffer"),

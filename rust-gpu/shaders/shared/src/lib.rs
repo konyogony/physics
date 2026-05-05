@@ -19,12 +19,16 @@ pub struct Particle {
     pub _pad: f32,
 }
 
-pub const TIME_SCALE: f32 = 20.0;
+pub const TIME_SCALE: f32 = 1.0;
 pub const MAX_PARTICLES: u32 = 262144;
 pub const PARTICLE_RADIUS: f32 = 10.0;
 pub const POLYGON_VERTICES: u32 = 48;
 
 // --- From Electric Shader ---
+// Softening factor
+pub const EPSILON_SQ: f32 = 20.0 * 20.0;
+pub const CHARGE_RADIUS: f32 = 15.0;
+pub const MAX_CHARGES: u32 = 1000;
 pub const DV: f32 = 1.0;
 pub const H: i32 = 1;
 
@@ -33,12 +37,14 @@ pub const H: i32 = 1;
 pub struct Charge {
     pub charge: f32,
     pub position: [f32; 2],
+    pub _pad: f32,
 }
 
 #[derive(Debug, Clone, Copy, Zeroable, Pod)]
 #[repr(C)]
 pub struct Field {
     pub field: [f32; 2],
+    pub _pad: [f32; 2],
 }
 
 // --- From Grid Shader ---
@@ -56,12 +62,11 @@ pub const ARROW_HEAD_HEIGHT_PX: f32 = 10.0;
 pub const HIGHLIGHT_SQUARES: f32 = 3.0;
 pub const ARROW_SCALE: f32 = 25.0;
 pub const MIN_ARROW_SCALE: f32 = 0.7;
-pub const COLOR_VALUE: f32 = 2.5;
 
 // --- General Code ---
 
 // These consstants are also defined inside of the rust code and passed in as a storage buffer.
-#[derive(Copy, Clone, Pod, Zeroable)]
+#[derive(Default, Copy, Clone, Pod, Zeroable)]
 #[repr(C)]
 pub struct ShaderConstants {
     pub width: u32,
@@ -73,6 +78,8 @@ pub struct ShaderConstants {
     pub num_particles: u32,
     pub epsilon_naught: f32,
     pub num_charges: u32,
+    pub color_value: f32,
+    pub _pad: [f32; 3],
 }
 
 pub struct SDF;
