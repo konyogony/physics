@@ -98,7 +98,6 @@ impl ElectricManager {
 
     pub fn toggle_charge(&mut self) {
         let current_charge = self.next_charge;
-        println!("{}", current_charge);
         if current_charge > 0.0 {
             self.next_charge = -1.0;
         } else {

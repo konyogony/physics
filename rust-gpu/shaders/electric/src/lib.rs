@@ -87,10 +87,11 @@ pub fn electric_potential_cs(
         let charge_coords = Vec2::new(charge_pos[0], charge_pos[1]);
 
         let q = charge.charge;
-        let r = (current_coords - charge_coords).length();
+        // Forgot to square this aswell, for the softening factor to work
+        let r_sq = (current_coords - charge_coords).length_squared();
         // Usually potential is q / r, however for simulation purposes so that test charges dont
         // explode, we will use q / sqrt(r^2 + epsilon^2)
-        potential += q / (r + EPSILON_SQ).sqrt();
+        potential += q / (r_sq + EPSILON_SQ).sqrt();
     }
 
     let final_potential = potential * k;
@@ -119,8 +120,9 @@ pub fn electric_field_cs(
 
     let max_index = constants.width as i32 * constants.height as i32;
 
-    let up_index = (index + H * constants.width as i32).min(max_index - 1);
-    let down_index = (index - H * constants.width as i32).max(0);
+    // MY UP AND DOWN WERE INVERTED!!!
+    let up_index = (index - H * constants.width as i32).min(max_index - 1);
+    let down_index = (index + H * constants.width as i32).max(0);
     let right_index = (index + H).min(max_index - 1);
     let left_index = (index - H).max(0);
 

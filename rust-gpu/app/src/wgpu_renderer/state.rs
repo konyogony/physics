@@ -88,7 +88,6 @@ impl State {
         );
 
         let size = swapchain.get_size();
-        println!("{:?}", size);
 
         let charges = vec![Charge {
             position: [size.width as f32 / 2.0, size.height as f32 / 2.0],
