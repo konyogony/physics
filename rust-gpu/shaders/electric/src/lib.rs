@@ -5,7 +5,8 @@
 use core::f32::consts::PI;
 use glam::{UVec3, Vec2, Vec3, Vec4};
 use shaders_shared::{
-    CHARGE_RADIUS, Charge, EPSILON_SQ, Field, H, POLYGON_VERTICES, ShaderConstants,
+    CHARGE_RADIUS, Charge, EPSILON_SQ, Field, H, MAX_STEPS, NUM_PARTICLES_PER_CHARGE,
+    POLYGON_VERTICES, STOP_DISTANCE, ShaderConstants, TracePoint,
 };
 #[allow(unused_imports)]
 use spirv_std::num_traits::Float;
@@ -142,4 +143,54 @@ pub fn electric_field_cs(
     };
 
     electric_field[index as usize] = field
+}
+
+#[spirv(compute(threads(128), entry_point_name = "electric_tracing_cs"))]
+pub fn electric_tracing_cs(
+    #[spirv(global_invocation_id)] global_invocation_id: UVec3,
+    #[spirv(descriptor_set = 0, binding = 0, storage_buffer)] constants: &ShaderConstants,
+    #[spirv(descriptor_set = 1, binding = 0, storage_buffer)] charges: &[Charge],
+    #[spirv(descriptor_set = 1, binding = 2, storage_buffer)] electric_field: &mut [Field],
+    #[spirv(descriptor_set = 1, binding = 3, storage_buffer)] tracing: &mut [TracePoint],
+) {
+    let particle_id = global_invocation_id.x as usize;
+    let charge_id = particle_id % NUM_PARTICLES_PER_CHARGE as usize;
+
+    let charge = charges[charge_id];
+    let center: Vec2 = charge.position.into();
+
+    let local_offset = {
+        let angle_increment = (2.0 * PI) / NUM_PARTICLES_PER_CHARGE as f32;
+        let angle_offset = (particle_id as f32) * angle_increment;
+        Vec2::new(
+            CHARGE_RADIUS * angle_offset.cos(),
+            CHARGE_RADIUS * angle_offset.sin(),
+        )
+    };
+
+    let mut current_pos = center + local_offset;
+
+    // trying new thing: lables, i can break loop from an inside loop
+    'outer: for step in 0..=MAX_STEPS {
+        let tracing_index =
+            (charge_id * NUM_PARTICLES_PER_CHARGE as usize + particle_id) * MAX_STEPS + step;
+        tracing[tracing_index].pos = current_pos.into();
+
+        let pos_index = (current_pos.x.floor() as usize)
+            + (current_pos.y.floor() as usize) * constants.width as usize;
+        let field_reading = electric_field[pos_index];
+
+        let velocity = field_reading.field;
+        current_pos.x += velocity[0];
+        current_pos.y += velocity[1];
+
+        for i in 0..=constants.num_charges {
+            let charge_pos = charges[i as usize].position;
+            let charge_vec = Vec2::new(charge_pos[0], charge_pos[1]);
+            let distance = (current_pos - charge_vec).length();
+            if distance < STOP_DISTANCE {
+                continue 'outer;
+            }
+        }
+    }
 }

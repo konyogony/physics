@@ -28,7 +28,7 @@ pub const POLYGON_VERTICES: u32 = 48;
 // Softening factor
 pub const EPSILON_SQ: f32 = 1.0;
 pub const CHARGE_RADIUS: f32 = 15.0;
-pub const MAX_CHARGES: u32 = 1000;
+pub const MAX_CHARGES: u32 = 100;
 pub const DV: f32 = 1.0;
 pub const H: i32 = 1;
 
@@ -46,6 +46,17 @@ pub struct Field {
     pub field: [f32; 2],
     pub _pad: [f32; 2],
 }
+
+#[derive(Debug, Clone, Copy, Zeroable, Pod)]
+#[repr(C)]
+pub struct TracePoint {
+    pub pos: [f32; 2],
+    pub _pad: [f32; 2],
+}
+
+pub const NUM_PARTICLES_PER_CHARGE: u32 = 12;
+pub const MAX_STEPS: usize = 10000;
+pub const STOP_DISTANCE: f32 = 5.0;
 
 // --- From Grid Shader ---
 

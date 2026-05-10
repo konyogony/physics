@@ -1,7 +1,7 @@
 use crate::wgpu_renderer::bind_group::{
     ConstantsBindGroups, ElectricBindGroups, GlobalBindGroupLayout,
 };
-use shaders_shared::{POLYGON_VERTICES, ShaderConstants};
+use shaders_shared::{NUM_PARTICLES_PER_CHARGE, POLYGON_VERTICES, ShaderConstants};
 use wgpu::{
     ColorTargetState, ColorWrites, ComputePipeline, ComputePipelineDescriptor, FragmentState,
     FrontFace, MultisampleState, PolygonMode, PrimitiveState, PrimitiveTopology, RenderPass,
@@ -146,5 +146,19 @@ impl ElectricPipeline {
         cpass.set_bind_group(1, &electric_bind_groups.electric, &[]);
 
         cpass.dispatch_workgroups(size.width.div_ceil(16), size.height.div_ceil(16), 1);
+    }
+
+    pub fn compute_tracing(
+        &mut self,
+        cpass: &mut ComputePass<'_>,
+        constants_bind_groups: &ConstantsBindGroups,
+        electric_bind_groups: &ElectricBindGroups,
+        num_charges: u32,
+    ) {
+        cpass.set_pipeline(&self.compute_field_pipeline);
+        cpass.set_bind_group(0, &constants_bind_groups.constants, &[]);
+        cpass.set_bind_group(1, &electric_bind_groups.electric, &[]);
+
+        cpass.dispatch_workgroups((num_charges * NUM_PARTICLES_PER_CHARGE).div_ceil(128), 1, 1);
     }
 }

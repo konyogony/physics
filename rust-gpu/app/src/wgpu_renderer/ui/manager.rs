@@ -19,7 +19,6 @@ pub struct InputValues {
 
 pub struct UIManager {
     pub active: bool,
-    pub context: egui::Context,
     pub state: egui_winit::State,
     pub renderer: egui_wgpu::Renderer,
     pub screen_descriptor: egui_wgpu::ScreenDescriptor,
@@ -54,7 +53,6 @@ impl UIManager {
 
         Self {
             active: true,
-            context,
             renderer,
             state,
             screen_descriptor,

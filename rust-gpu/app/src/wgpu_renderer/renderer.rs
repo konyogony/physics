@@ -132,6 +132,13 @@ impl Renderer {
             self.electric_manager.size,
         );
 
+        self.electric_pipeline.compute_tracing(
+            &mut cpass,
+            &constant_bind_groups,
+            &self.electric_manager.electric_bind_groups,
+            self.electric_manager.charges.len() as u32,
+        );
+
         self.particle_pipeline.compute(
             &mut cpass,
             &constant_bind_groups,
@@ -139,6 +146,7 @@ impl Renderer {
             &self.electric_manager.electric_bind_groups,
             self.particle_manager.current_num_of_particles,
         );
+
         // Dont forget to drop after each pass
         drop(cpass);
 

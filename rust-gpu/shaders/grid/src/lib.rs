@@ -10,8 +10,8 @@ use glam::{Vec2, Vec4, Vec4Swizzles};
 use shaders_shared::{
     ARROW_HEAD_HEIGHT_PX, ARROW_HEAD_WIDTH_PX, ARROW_SCALE, ARROW_THICKNESS_PX, AXIS_COLOR,
     BG_COLOR, Field, GRID_COLOR, GRID_SPACING_PX, GRID_THICKNESS_PX, HIGHLIGHT_COLOR,
-    HIGHLIGHT_SQUARES, MIN_ARROW_SCALE, SDF, ShaderConstants, antialias, antialias_no_fwidth, hsv,
-    map_range, smoothstep,
+    HIGHLIGHT_SQUARES, MIN_ARROW_SCALE, SDF, ShaderConstants, TracePoint, antialias,
+    antialias_no_fwidth, hsv, map_range, smoothstep,
 };
 #[allow(unused_imports)]
 use spirv_std::num_traits::Float;

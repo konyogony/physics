@@ -1,4 +1,7 @@
-use shaders_shared::{Charge, Field, ShaderConstants};
+use shaders_shared::{
+    Charge, Field, MAX_CHARGES, MAX_PARTICLES, MAX_STEPS, NUM_PARTICLES_PER_CHARGE,
+    ShaderConstants, TracePoint,
+};
 use wgpu::{
     BindGroup, BindGroupDescriptor, BindGroupEntry, BindGroupLayout, BindGroupLayoutDescriptor,
     BindGroupLayoutEntry, BindingResource, BindingType, Buffer, BufferBinding, BufferBindingType,
@@ -61,6 +64,7 @@ pub struct ElectricStorageBuffers {
     pub charges: Buffer,
     pub potential: Buffer,
     pub field: Buffer,
+    pub tracing: Buffer,
 }
 
 #[derive(Debug, Clone)]
@@ -158,6 +162,17 @@ impl GlobalBindGroupLayout {
                 // Field
                 BindGroupLayoutEntry {
                     binding: 2,
+                    visibility: ShaderStages::COMPUTE | ShaderStages::VERTEX_FRAGMENT,
+                    ty: BindingType::Buffer {
+                        ty: BufferBindingType::Storage { read_only: false },
+                        has_dynamic_offset: false,
+                        min_binding_size: None,
+                    },
+                    count: None,
+                },
+                // Tracing
+                BindGroupLayoutEntry {
+                    binding: 3,
                     visibility: ShaderStages::COMPUTE | ShaderStages::VERTEX_FRAGMENT,
                     ty: BindingType::Buffer {
                         ty: BufferBindingType::Storage { read_only: false },
@@ -355,6 +370,14 @@ impl GlobalBindGroupLayout {
                         size: None,
                     }),
                 },
+                BindGroupEntry {
+                    binding: 3,
+                    resource: BindingResource::Buffer(BufferBinding {
+                        buffer: &electric_storage_buffers.tracing,
+                        offset: 0,
+                        size: None,
+                    }),
+                },
             ],
         });
 
@@ -370,6 +393,7 @@ impl GlobalBindGroupLayout {
         charges_vec: Vec<Charge>,
     ) -> ElectricStorageBuffers {
         let max_index = size.width * size.height;
+        let max_trace_index = (MAX_CHARGES as usize + 1) * MAX_STEPS * NUM_PARTICLES_PER_CHARGE;
 
         let charges = device.create_buffer(&BufferDescriptor {
             label: Some("ChargeBuffer"),
@@ -394,10 +418,18 @@ impl GlobalBindGroupLayout {
             mapped_at_creation: false,
         });
 
+        let tracing = device.create_buffer(&BufferDescriptor {
+            label: Some("TracingBuffer"),
+            usage: BufferUsages::COPY_DST | BufferUsages::STORAGE,
+            size: (std::mem::size_of::<TracePoint>() * max_trace_index) as u64,
+            mapped_at_creation: false,
+        });
+
         ElectricStorageBuffers {
             charges,
             potential,
             field,
+            tracing,
         }
     }
 }
