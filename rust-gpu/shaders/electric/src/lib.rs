@@ -118,22 +118,19 @@ pub fn electric_field_cs(
         return;
     }
 
-    let max_index = constants.width as i32 * constants.height as i32;
+    // First calculate the coordinates and THEN the indices.
+    let left_x = (x - H).max(0);
+    let right_x = (x + H).min(constants.width as i32 - 1);
 
-    // MY UP AND DOWN WERE INVERTED!!!
-    let up_index = (index - H * constants.width as i32).min(max_index - 1);
-    let down_index = (index + H * constants.width as i32).max(0);
-    let right_index = (index + H).min(max_index - 1);
-    let left_index = (index - H).max(0);
+    // Since we are centered around top left, the `-` will bring us up and `+` will bring us down.
+    let up_y = (y - H).max(0);
+    let down_y = (y + H).min(constants.height as i32 - 1);
 
-    //     if left_index < 0 || down_index < 0 || right_index > max_index || up_index > max_index {
-    //         return;
-    //     }
+    let left_sample = electric_potential[(left_x + y * constants.width as i32) as usize];
+    let right_sample = electric_potential[(right_x + y * constants.width as i32) as usize];
 
-    let up_sample = electric_potential[up_index as usize];
-    let down_sample = electric_potential[down_index as usize];
-    let left_sample = electric_potential[left_index as usize];
-    let right_sample = electric_potential[right_index as usize];
+    let up_sample = electric_potential[(x + up_y * constants.width as i32) as usize];
+    let down_sample = electric_potential[(x + down_y * constants.width as i32) as usize];
 
     // make it signed.
     let d_dx = (right_sample - left_sample) / (2.0 * H as f32);

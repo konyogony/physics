@@ -25,6 +25,9 @@ winit.workspace = true
 anyhow.workspace = true
 bytemuck.workspace = true
 glam.workspace = true
+egui = "0.34.2"
+egui-winit = "0.34.2"
+egui-wgpu = "0.34.2"
 
 [build-dependencies]
 # rust-gpu

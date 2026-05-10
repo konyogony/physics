@@ -88,7 +88,7 @@ pub fn particle_cs(
         let velocity = electric_field[index].field;
         // Apply that velocity
         particle.position[0] += velocity[0] * constants.dt * TIME_SCALE;
-        particle.position[1] -= velocity[1] * constants.dt * TIME_SCALE;
+        particle.position[1] += velocity[1] * constants.dt * TIME_SCALE;
 
         // Not to lose data, we create mut var, and we assign whole particle to the output.
         output[particle_index] = particle;

@@ -4,13 +4,15 @@ use crate::wgpu_renderer::managers::particle::ParticleManager;
 use crate::wgpu_renderer::pipelines::electric::ElectricPipeline;
 use crate::wgpu_renderer::pipelines::grid::GridPipeline;
 use crate::wgpu_renderer::pipelines::particle::ParticlePipeline;
+use crate::wgpu_renderer::ui::manager::UIManager;
 use shaders_shared::{Charge, ShaderConstants};
 use wgpu::wgt::CommandEncoderDescriptor;
 use wgpu::{
     Color, ComputePassDescriptor, Device, LoadOp, Operations, Queue, RenderPassColorAttachment,
-    RenderPassDescriptor, StoreOp, TextureFormat, TextureView,
+    RenderPassDescriptor, StoreOp, SurfaceConfiguration, TextureFormat, TextureView,
 };
 use winit::dpi::PhysicalSize;
+use winit::window::Window;
 
 // This file is basically responsible for first of all
 // Renderer holds the device & queue + layout & pipeline, responsible for rendering
@@ -19,17 +21,20 @@ pub struct Renderer {
     pub queue: Queue,
     // Basically responsible for ALL bind group layouts and the creation of bind groups themselves
     pub global_bind_group_layout: GlobalBindGroupLayout,
-    grid_pipeline: GridPipeline,
-    particle_pipeline: ParticlePipeline,
-    electric_pipeline: ElectricPipeline,
+    pub grid_pipeline: GridPipeline,
+    pub particle_pipeline: ParticlePipeline,
+    pub electric_pipeline: ElectricPipeline,
     pub electric_manager: ElectricManager,
     pub particle_manager: ParticleManager,
+    pub ui_manager: UIManager,
 }
 
 impl Renderer {
     pub fn new(
+        window: &Window,
         device: Device,
         queue: Queue,
+        config: SurfaceConfiguration,
         out_format: TextureFormat,
         size: PhysicalSize<u32>,
         charges_vec: Vec<Charge>,
@@ -58,6 +63,8 @@ impl Renderer {
             charges_vec,
         );
 
+        let ui_manager = UIManager::new(window, &device, &config, out_format);
+
         // Pass it in
         Ok(Self {
             global_bind_group_layout,
@@ -66,6 +73,7 @@ impl Renderer {
             particle_pipeline,
             particle_manager,
             electric_manager,
+            ui_manager,
             device,
             queue,
         })
@@ -76,6 +84,7 @@ impl Renderer {
     // the swapchain
     pub fn render(
         &mut self,
+        window: &Window,
         shader_constants: &ShaderConstants,
         output: TextureView,
     ) -> anyhow::Result<()> {
@@ -133,6 +142,12 @@ impl Renderer {
         // Dont forget to drop after each pass
         drop(cpass);
 
+        // Before render pass we prepare
+        if self.ui_manager.active {
+            self.ui_manager
+                .prepare(window, &self.device, &self.queue, &mut cmd_encoder);
+        }
+
         // After all the computer passes are done, create & call the rneder passes.
         let mut rpass = cmd_encoder.begin_render_pass(&RenderPassDescriptor {
             label: Some("MainRenderPass"),
@@ -171,6 +186,13 @@ impl Renderer {
             &self.electric_manager.electric_bind_groups,
             self.electric_manager.charges.len() as u32,
         );
+
+        // Yes this is voodo magick.
+        let mut rpass = rpass.forget_lifetime();
+        // Inside render pass, we draw
+        if self.ui_manager.active {
+            self.ui_manager.draw(&mut rpass);
+        }
         drop(rpass);
 
         // Submit once the completed draw call.

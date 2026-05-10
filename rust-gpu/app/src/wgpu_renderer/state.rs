@@ -3,7 +3,7 @@ use crate::wgpu_renderer::renderer::Renderer;
 use crate::wgpu_renderer::swapchain::SwapchainManager;
 use crate::wgpu_renderer::{keyboard::Keyboard, mouse::Mouse};
 use anyhow::Context;
-use shaders_shared::{Charge, ShaderConstants};
+use shaders_shared::{Charge, DrawOptions, ShaderConstants};
 use std::sync::Arc;
 use std::time::Instant;
 use winit::{
@@ -23,9 +23,6 @@ pub struct State {
     window: Arc<Window>,
     renderer: Renderer,
     swapchain: SwapchainManager<'static>,
-    // This will just contain mock empty values that i can change dynamically and then pipe into
-    // the real shader constants, yes, a hack, but whatever.
-    shader_constants: ShaderConstants,
     mouse: Mouse,
     keyboard: Keyboard,
 }
@@ -88,6 +85,8 @@ impl State {
         );
 
         let size = swapchain.get_size();
+        let config = swapchain.get_config().unwrap();
+        let format = swapchain.get_format();
 
         let charges = vec![Charge {
             position: [size.width as f32 / 2.0, size.height as f32 / 2.0],
@@ -96,7 +95,7 @@ impl State {
         }];
 
         // Create a renderer
-        let renderer = Renderer::new(device, queue, swapchain.get_format(), size, charges)?;
+        let renderer = Renderer::new(&window, device, queue, config, format, size, charges)?;
 
         // Create a mouse manager-ish
         let mouse = Mouse::new();
@@ -112,7 +111,6 @@ impl State {
             window,
             swapchain,
             renderer,
-            shader_constants: ShaderConstants::default(),
         })
     }
 
@@ -123,6 +121,11 @@ impl State {
         _id: WindowId,
         event: WindowEvent,
     ) -> anyhow::Result<()> {
+        // Basically feed the input into UI and if it consumes it, then stop processes.
+        if self.renderer.ui_manager.handle_event(&self.window, &event) {
+            return Ok(());
+        }
+
         match event {
             // So if a draw is requested
             WindowEvent::RedrawRequested => self.handle_redraw()?,
@@ -145,10 +148,6 @@ impl State {
                         .electric_manager
                         .add_charge(&self.renderer.queue, self.mouse.position);
                 }
-
-                //if self.mouse.buttons_state.rmb == ElementState::Pressed {
-                //    self.renderer.particle_manager.remove_all_particles();
-                //}
             }
 
             // ESC or CloseRequested exit the event loop
@@ -166,6 +165,7 @@ impl State {
             // If a window is resized, we have to recreate the surface
             WindowEvent::Resized(new_size) => {
                 self.swapchain.set_should_recreate_true();
+                self.swapchain.recreate()?;
 
                 self.renderer.electric_manager.resize(
                     &self.renderer.device,
@@ -173,6 +173,9 @@ impl State {
                     new_size,
                     &self.renderer.global_bind_group_layout,
                 );
+
+                let config = self.swapchain.get_config().unwrap();
+                self.renderer.ui_manager.resize(&self.window, &config);
             }
 
             WindowEvent::KeyboardInput { event, .. } => {
@@ -202,17 +205,21 @@ impl State {
         }
 
         if input_actions.increment_color_fast {
-            self.shader_constants.color_value += 5.0;
+            self.renderer.ui_manager.input_values.color_value += 5.0;
         }
         if input_actions.increment_color {
-            self.shader_constants.color_value += 0.5;
+            self.renderer.ui_manager.input_values.color_value += 0.5;
         }
 
-        if input_actions.decrement_color_fast {
-            self.shader_constants.color_value -= 5.0;
+        if input_actions.decrement_color_fast
+            && self.renderer.ui_manager.input_values.color_value >= 5.0
+        {
+            self.renderer.ui_manager.input_values.color_value -= 5.0;
         }
-        if input_actions.decrement_color {
-            self.shader_constants.color_value -= 0.5;
+
+        if input_actions.decrement_color && self.renderer.ui_manager.input_values.color_value >= 0.5
+        {
+            self.renderer.ui_manager.input_values.color_value -= 0.5;
         }
 
         if input_actions.remove_particles {
@@ -225,6 +232,9 @@ impl State {
         if input_actions.toggle_charge {
             self.renderer.electric_manager.toggle_charge();
         }
+        if input_actions.toggle_ui {
+            self.renderer.ui_manager.toggle_active();
+        }
     }
 
     pub fn handle_redraw(&mut self) -> anyhow::Result<()> {
@@ -236,6 +246,7 @@ impl State {
         self.swapchain.render(|render_target| {
             // Then we call the renderer and pass in all the params
             self.renderer.render(
+                &self.window,
                 &ShaderConstants {
                     // Pretty cool method to get current time in the application ngl
                     time: self.start.elapsed().as_secs_f32(),
@@ -250,8 +261,12 @@ impl State {
                     //epsilon_naught: ((8.9_f32).powi(-12)),
                     epsilon_naught: ((8.9_f32).powi(-8)),
                     num_charges: self.renderer.electric_manager.charges.len() as u32,
-                    color_value: self.shader_constants.color_value,
-                    _pad: [0.0; 3],
+                    color_value: self.renderer.ui_manager.input_values.color_value,
+                    draw_options: DrawOptions {
+                        draw_grid: self.renderer.ui_manager.input_values.draw_grid as u32,
+                        draw_vec: self.renderer.ui_manager.input_values.draw_vec as u32,
+                        draw_potential: self.renderer.ui_manager.input_values.draw_potential as u32,
+                    },
                 },
                 render_target,
             )

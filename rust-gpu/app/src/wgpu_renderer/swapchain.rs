@@ -1,6 +1,9 @@
 use anyhow::Context;
 use std::sync::Arc;
-use wgpu::{Adapter, CurrentSurfaceTexture, Device, Instance, Surface, TextureFormat, TextureView};
+use wgpu::{
+    Adapter, CurrentSurfaceTexture, Device, Instance, Surface, SurfaceConfiguration, TextureFormat,
+    TextureView,
+};
 use winit::dpi::PhysicalSize;
 use winit::window::Window;
 
@@ -20,6 +23,7 @@ pub struct SwapchainManager<'a> {
 
 pub struct ActiveConfiguration {
     size: PhysicalSize<u32>,
+    surface_config: SurfaceConfiguration,
 }
 
 impl<'a> SwapchainManager<'a> {
@@ -33,7 +37,7 @@ impl<'a> SwapchainManager<'a> {
     ) -> Self {
         // We just pass in all the stuff we created in the state & get the caps here
         let caps = surface.get_capabilities(&adapter);
-        Self {
+        let mut manager = SwapchainManager {
             instance,
             adapter,
             device,
@@ -41,8 +45,13 @@ impl<'a> SwapchainManager<'a> {
             surface,
             format: caps.formats[0],
             active: None,
-            should_recreate: true,
-        }
+            should_recreate: false,
+        };
+        let size = manager.get_size();
+        manager
+            .configure_surface(size)
+            .expect("Initial configuration failed");
+        manager
     }
 
     // Method to recerate self
@@ -67,13 +76,19 @@ impl<'a> SwapchainManager<'a> {
     pub fn get_size(&self) -> PhysicalSize<u32> {
         self.window.inner_size()
     }
+    pub fn get_config(&self) -> Option<SurfaceConfiguration> {
+        if let Some(active) = &self.active {
+            return Some(active.surface_config.clone());
+        }
+        None
+    }
 
     // Takes in a function that it can only be called once,
     // takes in a texture view (as a storage texture im guessing)
-    pub fn render(
-        &mut self,
-        render_function: impl FnOnce(TextureView) -> anyhow::Result<()>,
-    ) -> anyhow::Result<()> {
+    pub fn render<F>(&mut self, render_function: F) -> anyhow::Result<()>
+    where
+        F: FnOnce(TextureView) -> anyhow::Result<()>,
+    {
         // Get the size
         let size = self.get_size();
 
@@ -103,8 +118,9 @@ impl<'a> SwapchainManager<'a> {
                             format: Some(self.format),
                             ..wgpu::TextureViewDescriptor::default()
                         });
-                render_function(output_view)?;
+                let result = render_function(output_view);
                 surface_texture.present();
+                result?;
             }
             CurrentSurfaceTexture::Occluded | CurrentSurfaceTexture::Timeout => (),
             CurrentSurfaceTexture::Suboptimal(_) | CurrentSurfaceTexture::Outdated => {
@@ -146,7 +162,10 @@ impl<'a> SwapchainManager<'a> {
         self.surface.configure(&self.device, &surface_config);
 
         // A configuration was made, it can now be used.
-        self.active = Some(ActiveConfiguration { size });
+        self.active = Some(ActiveConfiguration {
+            surface_config,
+            size,
+        });
         Ok(())
     }
 }

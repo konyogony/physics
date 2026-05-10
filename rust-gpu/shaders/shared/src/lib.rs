@@ -26,7 +26,7 @@ pub const POLYGON_VERTICES: u32 = 48;
 
 // --- From Electric Shader ---
 // Softening factor
-pub const EPSILON_SQ: f32 = 20.0 * 20.0;
+pub const EPSILON_SQ: f32 = 1.0;
 pub const CHARGE_RADIUS: f32 = 15.0;
 pub const MAX_CHARGES: u32 = 1000;
 pub const DV: f32 = 1.0;
@@ -55,7 +55,7 @@ pub const AXIS_COLOR: Vec4 = Vec4::new(1.0, 1.0, 1.0, 0.8);
 pub const BG_COLOR: Vec4 = Vec4::new(0.0, 0.0, 0.0, 1.0);
 pub const HIGHLIGHT_COLOR: Vec4 = Vec4::new(0.0, 1.0, 1.0, 0.4);
 pub const GRID_THICKNESS_PX: f32 = 1.0;
-pub const GRID_SPACING_PX: f32 = 30.0;
+pub const GRID_SPACING_PX: f32 = 50.0;
 pub const ARROW_THICKNESS_PX: f32 = 1.0;
 pub const ARROW_HEAD_WIDTH_PX: f32 = 4.0;
 pub const ARROW_HEAD_HEIGHT_PX: f32 = 10.0;
@@ -79,7 +79,15 @@ pub struct ShaderConstants {
     pub epsilon_naught: f32,
     pub num_charges: u32,
     pub color_value: f32,
-    pub _pad: [f32; 3],
+    pub draw_options: DrawOptions,
+}
+
+#[derive(Default, Copy, Clone, Pod, Zeroable)]
+#[repr(C)]
+pub struct DrawOptions {
+    pub draw_grid: u32,
+    pub draw_vec: u32,
+    pub draw_potential: u32,
 }
 
 pub struct SDF;

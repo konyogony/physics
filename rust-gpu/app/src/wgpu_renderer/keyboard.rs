@@ -15,6 +15,7 @@ pub struct InputActions {
     pub remove_particles: bool,
     pub remove_charges: bool,
     pub toggle_charge: bool,
+    pub toggle_ui: bool,
 }
 
 #[derive(Default, Debug, Clone)]
@@ -82,6 +83,7 @@ impl Keyboard {
                     }
                 }
                 PhysicalKey::Code(KeyCode::KeyX) => actions.toggle_charge = true,
+                PhysicalKey::Code(KeyCode::F10) => actions.toggle_ui = true,
                 _ => {}
             }
         }

@@ -15,6 +15,7 @@ mod renderer;
 mod state;
 mod swapchain;
 mod texture;
+mod ui;
 
 // The app struct will store the state of the application
 #[derive(Default)]
