@@ -1,6 +1,5 @@
 use shaders_shared::{
-    Charge, Field, MAX_CHARGES, MAX_PARTICLES, MAX_STEPS, NUM_PARTICLES_PER_CHARGE,
-    ShaderConstants, TracePoint,
+    Charge, Field, MAX_CHARGES, MAX_STEPS, NUM_PARTICLES_PER_CHARGE, ShaderConstants, TracePoint,
 };
 use wgpu::{
     BindGroup, BindGroupDescriptor, BindGroupEntry, BindGroupLayout, BindGroupLayoutDescriptor,
@@ -393,7 +392,8 @@ impl GlobalBindGroupLayout {
         charges_vec: Vec<Charge>,
     ) -> ElectricStorageBuffers {
         let max_index = size.width * size.height;
-        let max_trace_index = (MAX_CHARGES as usize + 1) * MAX_STEPS * NUM_PARTICLES_PER_CHARGE;
+        let max_trace_index =
+            (MAX_CHARGES as usize + 1) * MAX_STEPS * NUM_PARTICLES_PER_CHARGE as usize;
 
         let charges = device.create_buffer(&BufferDescriptor {
             label: Some("ChargeBuffer"),

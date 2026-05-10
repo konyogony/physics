@@ -51,7 +51,6 @@ pub struct Field {
 #[repr(C)]
 pub struct TracePoint {
     pub pos: [f32; 2],
-    pub _pad: [f32; 2],
 }
 
 pub const NUM_PARTICLES_PER_CHARGE: u32 = 12;

@@ -127,6 +127,7 @@ pub fn electric_potential_cs(
     let mut potential = 0.0;
 
     let k = 1.0 / (4.0 * PI * constants.epsilon_naught);
+
     // Summation of all charges
     for charge in 0..constants.num_charges {
         // Extract charge
@@ -135,11 +136,11 @@ pub fn electric_potential_cs(
         let charge_coords = Vec2::new(charge_pos[0], charge_pos[1]);
 
         let q = charge.charge;
-        let r = (current_coords - charge_coords).length();
+        let r_sq = (current_coords - charge_coords).length_squared();
         // Usually potential is q / r, however for simulation purposes so that test charges dont
         // explode, we will use q / sqrt(r^2 + epsilon^2).
-        // Note, this EPSILON_SQ is NOT correlated to epsilon_0, but is a smoothening factor.
-        potential += q / (r + EPSILON_SQ).sqrt();
+        // Note, this EPSILON_SQ is NOT correlated to epsilon_0, but is a smoothening factor around 1.0
+        potential += q / (r_sq + EPSILON_SQ).sqrt();
     }
 
     let final_potential = potential * k;
@@ -167,38 +168,26 @@ Now, if this operation is repeated in each direction, meaning horizontal and ver
 pub fn electric_field_cs(
     // Inputs
 ) {
-    // Extract index
-    let x = global_invocation_id.x as i32;
-    let y = global_invocation_id.y as i32;
-    let index = x + y * constants.width as i32;
+    // ...Extract index and check if within range
+    // First we calculate the coordinates and THEN the indices.
+    let left_x = (x - H).max(0);
+    let right_x = (x + H).min(constants.width as i32 - 1);
 
-    // Check if outside bounds
-    if x >= constants.width as i32 || y >= constants.height as i32 {
-        return;
-    }
+    // Since we are centered around top left, the `-` will bring us up and `+` will bring us down.
+    let up_y = (y - H).max(0);
+    let down_y = (y + H).min(constants.height as i32 - 1);
 
-    let max_index = constants.width as i32 * constants.height as i32;
+    let left_sample = electric_potential[(left_x + y * constants.width as i32) as usize];
+    let right_sample = electric_potential[(right_x + y * constants.width as i32) as usize];
 
-    // Acquire index in all directions, while making sure its inside our range
-    let up_index = (index + H * constants.width as i32).min(max_index - 1);
-    let down_index = (index - H * constants.width as i32).max(0);
-    let right_index = (index + H).min(max_index - 1);
-    let left_index = (index - H).max(0);
+    let up_sample = electric_potential[(x + up_y * constants.width as i32) as usize];
+    let down_sample = electric_potential[(x + down_y * constants.width as i32) as usize];
 
-    // Take sample from each index
-    let up_sample = electric_potential[up_index as usize];
-    let down_sample = electric_potential[down_index as usize];
-    let left_sample = electric_potential[left_index as usize];
-    let right_sample = electric_potential[right_index as usize];
-
-    // Use central difference method.
     let d_dx = (right_sample - left_sample) / (2.0 * H as f32);
     let d_dy = (up_sample - down_sample) / (2.0 * H as f32);
 
-    // Create the field
     let field = Field {
         field: [-d_dx, -d_dy],
-        // Padding is required to make sure each struct is aligned to 16 bytes (4xf32 or 4xu32)
         _pad: [0.0; 2],
     };
 
@@ -207,3 +196,110 @@ pub fn electric_field_cs(
 ```
 
 When we multiply `H * constants.width`, we are basically forcing to wrap `H` times around, which progresses us downwards.
+Now that we are succesfully calculating $-\vec{\nabla}\phi$ and storing it inside of `electric_field` buffer, we can actually apply it onto our grid.
+Hence, we will have to pass in this electric bind group into the fragment shader for our grid. It is important to note the order of operations, since we will be working with multiple
+compute and render passes:
+
+1. First compute pass calculates `electric_potential` from a list of charges.
+2. Second compute pass calculates `electric_field` from `electric_potential`, as well as pass in updated data into `particle_cs`.
+3. Main render pass will pass in all data into vertex and fragment shaders for the grid.
+
+To apply the `electric_field` inside of the fragment shader, we use the index calculation mentioned earlier and the `frag_coords` passed in. Then, from the extracted position we
+can create the vector and make the arrows point in the correct direction. However, currently the arrows will be bending around invisible objects, thefore we can copy how particles are rendered and apply
+same vertex shader code onto the charges themselves but slightly editting the properties like the radius. Since for each charge we also store its relative charge (-1 / +1), we can shade each one of them differently,
+where I have went for an orangy-yellow as my positive and a cool blue for negatives. Here is the final output when you combine all the techniques together.
+
+<div class="img-container">
+  <img src="./assets/electric-field-1.webp" alt="Electric Field around a positive charge" />
+</div>
+
+Now this is very exciting that we can see the electric field in action, but it is not quite dynamic enough, therefore we need to introduce user input. From an already existing `Mouse` struct we can extract
+when user uses right click and insert a new charge into `Vec<Charge>`, which is stored in the `ElectricManager`. In addition to that, we alter the charges buffer and the new charge appears in our simulation.
+In contrast to normal particles, here we could entirelly replace and recreate the buffer with all the charges, since none of their information dynamically updates inside of GPU, nothing would be lost.
+However, it is still quite more efficient to index into the right spot and edit a specific memory location. Now that we have introduces spawning in new charges, we will have to look at a way of switching their charge.
+I have decided this should be done by a keyboard input, for example when user presses `X` on their keyboard.
+
+## Keyboard Inputs
+
+This means we have to properly look at how we want to handle keyboard inputs. Well, first of all an input from a device is a window event coming from `winit` itself, and we handle all of them inside of the `State` struct.
+When check that this window event is a keyboard input, we can pass in the key and its state into a new struct, `Keyboard`. This struct will update a HashMap that is stored inside of it assignign the key to a specific state.
+This way we can track inside and outside of the struct when a specific key is pressed down.
+
+```rs
+WindowEvent::KeyboardInput { event, .. } => {
+    self.keyboard.update_key(event.physical_key, event.state);
+
+    let input_actions = self
+        .keyboard
+        .get_input_actions(event.physical_key, event.state);
+
+    self.handle_input_actions(input_actions);
+}
+```
+
+In addition to that, we pass in the event information into `get_input_actions`. This method is what is actually responsible
+for processing user input and applying correct states, but not in a way you think it does. Instead of this method being responsible for acting upon the user input,
+it will only return a struct showing the states that have been changed. This allows the method to solely be responsible for configuring what keys trigger what inputs.
+
+```rs
+#[derive(Default, Debug, Clone, Copy)]
+pub struct InputActions {
+    pub increment_color: bool,
+    pub increment_color_fast: bool,
+    pub decrement_color: bool,
+    pub decrement_color_fast: bool,
+    pub remove_particles: bool,
+    pub remove_charges: bool,
+    pub toggle_fullscreen: bool,
+    pub toggle_charge: bool,
+    pub toggle_ui: bool,
+}
+```
+
+This struct is then passed onto the `handle_input_actions` shown earier, which acts upon these states to perform the actions shown. Now that keyboard inputs are handled properly we can create a variety of different
+electric fields.
+
+<div class="img-container">
+  <img src="./assets/electric-field-2.webp" alt="Electric Field with multiple charges" />
+</div>
+
+## GUI Interface
+
+In addition to creating an electric field visualiser, I wanted to focus on showing equipotential lines as well as field lines. However, this would seriously interfere with our infrastrcture, since code will have to be removed and replaced.
+Hence, not to create many copies, all of my sub-projects will work in the same program and always be active, but not always displayed. This means we need to somehow activly toggle on or off certain parts of shaders.
+A graphical user interface (GUI) would be quite helpful, and luckily enough I already had prior experience working with once, specifically for `wgpu`. The [`egui`](https://github.com/emilk/egui) library is a fantastic and
+as advertised an easy to use GUI interface creator. This library greatly simplifies alot of mess to deal with. From my previous attempts, I have learnt that its best to create a new `UIManager` struct which will hold
+appropriate method for intialisation, resize and draw calls.
+
+Although the init process is not as simple as it may seem, I will do my best to explain briefly the flow of data within this struct. On program intialisation, we create a new `UIManager` that will be persistant and
+store its state, renderer and other attributes. On each redraw call, before the render pass even starts we have to prepare the UI. This step includes acquiring the raw input and drawing a predefined UI layout onto an output.
+This output is then processed inside of the renderer using textures and in the end `ClippedPrimitive`s are produced. We store them inside the struct and update needed buffers. After this preparation stage, the render pass continues as normal,
+where at the end we call the `draw` on the manager. This method will use the previously stored clipped primitives to render the UI elements onto the screen.
+
+Lets look at how the UI layout is created. As mentioned previously this library is quite intuitive, and all the methods are straightforward as seen here:
+
+```rs
+egui::Window::new("Configuration")
+    .collapsible(true)
+    .resizable(true)
+    .default_width(400.0)
+    .show(ctx, |ui| {
+        egui::ScrollArea::vertical().show(ui, |ui| {
+            ui.vertical(|ui| {
+                ui.checkbox(&mut self.input_values.draw_grid, "Draw Grid");
+                ui.checkbox(&mut self.input_values.draw_vec, "Draw Vector Arrows");
+                ui.checkbox(
+                    &mut self.input_values.draw_potential,
+                    "Draw Equipotential Lines",
+                );
+            });
+        });
+    });
+```
+
+Here in this example we create three checkboxes for our render outputs. On user input `egui` will capture it and update the `&mut self.input_values.draw_grid` variables. This `input_values` field is a persistant field which is used specifically for the UI.
+This field is then read from inside of `State` and passed on in the shader struct to render appropriate elements. Here is how it looks populated with more inputs.
+
+<div class="img-container">
+  <img src="./assets/ui.webp" alt="User Interface example with more field" />
+</div>

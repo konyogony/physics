@@ -122,7 +122,6 @@ impl UIManager {
             .collapsible(true)
             .resizable(true)
             .default_width(400.0)
-            .anchor(egui::Align2::RIGHT_TOP, [-10.0, 10.0])
             .show(ctx, |ui| {
                 egui::ScrollArea::vertical().show(ui, |ui| {
                     ui.vertical(|ui| {
