@@ -160,10 +160,14 @@ pub fn grid_fs(
             let vec_strength = vec.length().max(0.0001);
 
             let current_potential = potential_field[index as usize];
-            let target_potential = 0.0;
-            let potential_difference = (target_potential - current_potential).abs();
-            let alpha = antialias(potential_difference / vec_strength, 1.0);
+            let mut alpha = 0.0;
+            let mut target_potential = -1000.0;
 
+            while target_potential <= 1000.0 {
+                let potential_difference = (target_potential - current_potential).abs();
+                alpha += antialias(potential_difference / vec_strength, 1.0);
+                target_potential += 250.0;
+            }
             *output = output.lerp(AXIS_COLOR, alpha);
         }
     }

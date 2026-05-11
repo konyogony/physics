@@ -122,7 +122,7 @@ impl ElectricPipeline {
             },
             // Default culling & settings.
             primitive: PrimitiveState {
-                topology: PrimitiveTopology::LineStrip,
+                topology: PrimitiveTopology::LineList,
                 strip_index_format: None,
                 front_face: FrontFace::Ccw,
                 cull_mode: None,
@@ -182,7 +182,7 @@ impl ElectricPipeline {
         rpass.set_bind_group(1, &electric_bind_groups.electric, &[]);
 
         rpass.draw(
-            0..(MAX_STEPS as u32),
+            0..((MAX_STEPS as u32 - 1) * 2),
             0..(num_charges * NUM_PARTICLES_PER_CHARGE),
         );
     }

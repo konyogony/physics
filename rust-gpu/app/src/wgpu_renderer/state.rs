@@ -88,11 +88,19 @@ impl State {
         let config = swapchain.get_config().unwrap();
         let format = swapchain.get_format();
 
-        let charges = vec![Charge {
-            position: [size.width as f32 / 2.0, size.height as f32 / 2.0],
-            charge: 1.0,
-            _pad: 0.0,
-        }];
+        let scale = 0.1;
+        let charges = vec![
+            Charge {
+                charge: 1.0 * scale,
+                position: [size.width as f32 / 2.0 + 200.0, size.height as f32 / 2.0],
+                _pad: 0.0,
+            },
+            Charge {
+                charge: -scale,
+                position: [size.width as f32 / 2.0 - 200.0, size.height as f32 / 2.0],
+                _pad: 0.0,
+            },
+        ];
 
         // Create a renderer
         let renderer = Renderer::new(&window, device, queue, config, format, size, charges)?;
@@ -266,6 +274,8 @@ impl State {
                         draw_grid: self.renderer.ui_manager.input_values.draw_grid as u32,
                         draw_vec: self.renderer.ui_manager.input_values.draw_vec as u32,
                         draw_potential: self.renderer.ui_manager.input_values.draw_potential as u32,
+                        draw_field_lines: self.renderer.ui_manager.input_values.draw_field_lines
+                            as u32,
                     },
                 },
                 render_target,

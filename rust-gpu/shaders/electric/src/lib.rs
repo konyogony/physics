@@ -6,7 +6,7 @@ use core::f32::consts::PI;
 use glam::{UVec3, Vec2, Vec3, Vec4};
 use shaders_shared::{
     CHARGE_RADIUS, Charge, EPSILON_SQ, Field, H, MAX_STEPS, NUM_PARTICLES_PER_CHARGE,
-    POLYGON_VERTICES, STOP_DISTANCE, ShaderConstants, TracePoint,
+    POLYGON_VERTICES, STEP_SIZE, STOP_DISTANCE, ShaderConstants, TracePoint,
 };
 #[allow(unused_imports)]
 use spirv_std::num_traits::Float;
@@ -135,7 +135,7 @@ pub fn electric_field_cs(
 
     // make it signed.
     let d_dx = (right_sample - left_sample) / (2.0 * H as f32);
-    let d_dy = (up_sample - down_sample) / (2.0 * H as f32);
+    let d_dy = (down_sample - up_sample) / (2.0 * H as f32);
 
     let field = Field {
         field: [-d_dx, -d_dy],
@@ -159,6 +159,13 @@ pub fn electric_tracing_cs(
     let charge = charges[charge_id];
     let center: Vec2 = charge.position.into();
 
+    if charge.charge < 0.0 {
+        for step in 0..MAX_STEPS {
+            tracing[particle_id * MAX_STEPS + step].pos = center.into();
+        }
+        return;
+    }
+
     let local_offset = {
         let angle_increment = (2.0 * PI) / NUM_PARTICLES_PER_CHARGE as f32;
         let angle_offset = (particle_id as f32) * angle_increment;
@@ -170,27 +177,52 @@ pub fn electric_tracing_cs(
 
     let mut current_pos = center + local_offset;
 
-    // trying new thing: lables, i can break loop from an inside loop
-    'outer: for step in 0..=MAX_STEPS {
+    for step in 0..MAX_STEPS {
         let tracing_index = particle_id * MAX_STEPS + step;
         tracing[tracing_index].pos = current_pos.into();
 
-        let pos_index = (current_pos.x.floor() as usize)
-            + (current_pos.y.floor() as usize) * constants.width as usize;
-        let field_reading = electric_field[pos_index];
+        let x = current_pos.x.floor() as i32;
+        let y = current_pos.y.floor() as i32;
 
-        let velocity = field_reading.field;
-        current_pos.x += velocity[0];
-        current_pos.y += velocity[1];
+        let out_of_bounds =
+            x <= 0 || x >= constants.width as i32 || y <= 0 || y >= constants.height as i32;
 
-        for i in 0..=constants.num_charges {
+        let mut near_charge = false;
+        for i in 0..constants.num_charges {
             let charge_pos = charges[i as usize].position;
             let charge_vec = Vec2::new(charge_pos[0], charge_pos[1]);
-            let distance = (current_pos - charge_vec).length();
-            if distance < STOP_DISTANCE {
-                continue 'outer;
+            let distance = (charge_vec - current_pos).length();
+            if distance <= STOP_DISTANCE {
+                near_charge = true;
+                break;
             }
         }
+
+        // Basically if conditions are met, we just set remaining positions to same position
+        if near_charge || out_of_bounds {
+            for remaining in (step + 1)..MAX_STEPS {
+                tracing[particle_id * MAX_STEPS + remaining].pos = current_pos.into()
+            }
+            break;
+        }
+
+        let pos_index = x + y * constants.width as i32;
+        let field_reading = electric_field[pos_index as usize];
+
+        let velocity = field_reading.field;
+        let vel = Vec2::new(velocity[0], velocity[1]);
+        let strength = vel.length();
+        // Terminate since basically stuck.
+        if strength < 1e-6 {
+            for remaining in (step + 1)..MAX_STEPS {
+                tracing[particle_id * MAX_STEPS + remaining].pos = current_pos.into()
+            }
+            break;
+        }
+
+        // Normalized.
+        let dir = vel / strength;
+        current_pos += dir * STEP_SIZE;
     }
 }
 
@@ -202,10 +234,14 @@ pub fn electric_tracing_vs(
     #[spirv(descriptor_set = 0, binding = 0, storage_buffer)] constants: &ShaderConstants,
     #[spirv(descriptor_set = 1, binding = 3, storage_buffer)] tracing: &mut [TracePoint],
 ) {
-    if constants.draw_options.draw_potential == 0 {
+    if constants.draw_options.draw_field_lines == 0 {
         return;
     }
-    let index = instance_id * MAX_STEPS as i32 + vtx_id;
+    let segment_id = vtx_id / 2;
+    let endpoint = vtx_id % 2;
+    let step = segment_id + endpoint;
+
+    let index = instance_id * MAX_STEPS as i32 + step;
     let point = tracing[index as usize];
 
     let uv = Vec2::new(

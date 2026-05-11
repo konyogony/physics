@@ -54,8 +54,9 @@ pub struct TracePoint {
 }
 
 pub const NUM_PARTICLES_PER_CHARGE: u32 = 12;
-pub const MAX_STEPS: usize = 10000;
-pub const STOP_DISTANCE: f32 = 5.0;
+pub const MAX_STEPS: usize = 11000;
+pub const STEP_SIZE: f32 = 3.0;
+pub const STOP_DISTANCE: f32 = 10.0;
 
 // --- From Grid Shader ---
 
@@ -98,6 +99,7 @@ pub struct DrawOptions {
     pub draw_grid: u32,
     pub draw_vec: u32,
     pub draw_potential: u32,
+    pub draw_field_lines: u32,
 }
 
 pub struct SDF;

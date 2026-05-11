@@ -83,8 +83,8 @@ impl ElectricManager {
         }
 
         let charge = Charge {
-            position,
             charge: self.next_charge,
+            position,
             _pad: 0.0,
         };
 

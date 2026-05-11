@@ -6,6 +6,7 @@ pub const DEFAULT_CONFIG: InputValues = InputValues {
     draw_grid: true,
     draw_vec: true,
     draw_potential: false,
+    draw_field_lines: false,
     color_value: 5.0,
 };
 
@@ -14,6 +15,7 @@ pub struct InputValues {
     pub draw_grid: bool,
     pub draw_vec: bool,
     pub draw_potential: bool,
+    pub draw_field_lines: bool,
     pub color_value: f32,
 }
 
@@ -131,6 +133,7 @@ impl UIManager {
                             &mut self.input_values.draw_potential,
                             "Draw Equipotential Lines",
                         );
+                        ui.checkbox(&mut self.input_values.draw_field_lines, "Draw Field Lines");
                     });
                     ui.horizontal(|ui| {
                         ui.add(DragValue::new(&mut self.input_values.color_value));
