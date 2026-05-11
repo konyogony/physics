@@ -154,7 +154,7 @@ pub fn electric_tracing_cs(
     #[spirv(descriptor_set = 1, binding = 3, storage_buffer)] tracing: &mut [TracePoint],
 ) {
     let particle_id = global_invocation_id.x as usize;
-    let charge_id = particle_id % NUM_PARTICLES_PER_CHARGE as usize;
+    let charge_id = particle_id / NUM_PARTICLES_PER_CHARGE as usize;
 
     let charge = charges[charge_id];
     let center: Vec2 = charge.position.into();
@@ -172,8 +172,7 @@ pub fn electric_tracing_cs(
 
     // trying new thing: lables, i can break loop from an inside loop
     'outer: for step in 0..=MAX_STEPS {
-        let tracing_index =
-            (charge_id * NUM_PARTICLES_PER_CHARGE as usize + particle_id) * MAX_STEPS + step;
+        let tracing_index = particle_id * MAX_STEPS + step;
         tracing[tracing_index].pos = current_pos.into();
 
         let pos_index = (current_pos.x.floor() as usize)
@@ -193,4 +192,31 @@ pub fn electric_tracing_cs(
             }
         }
     }
+}
+
+#[spirv(vertex(entry_point_name = "electric_tracing_vs"))]
+pub fn electric_tracing_vs(
+    #[spirv(vertex_index)] vtx_id: i32,
+    #[spirv(instance_index)] instance_id: i32,
+    #[spirv(position)] vtx_pos: &mut Vec4,
+    #[spirv(descriptor_set = 0, binding = 0, storage_buffer)] constants: &ShaderConstants,
+    #[spirv(descriptor_set = 1, binding = 3, storage_buffer)] tracing: &mut [TracePoint],
+) {
+    if constants.draw_options.draw_potential == 0 {
+        return;
+    }
+    let index = instance_id * MAX_STEPS as i32 + vtx_id;
+    let point = tracing[index as usize];
+
+    let uv = Vec2::new(
+        (point.pos[0] / constants.width as f32) * 2.0 - 1.0,
+        (point.pos[1] / constants.height as f32) * -2.0 + 1.0,
+    );
+
+    *vtx_pos = uv.extend(0.0).extend(1.0);
+}
+
+#[spirv(fragment(entry_point_name = "electric_tracing_fs"))]
+pub fn electric_tracing_fs(output: &mut Vec4) {
+    *output = Vec4::new(1.0, 1.0, 1.0, 1.0);
 }

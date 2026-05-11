@@ -303,3 +303,25 @@ This field is then read from inside of `State` and passed on in the shader struc
 <div class="img-container">
   <img src="./assets/ui.webp" alt="User Interface example with more field" />
 </div>
+
+## Equipotential & field lines
+
+In the Feynman lecture covered, the idea of equipotential and field lines were covered. An equipotential line was defined as a line segment,
+along which the electric potential, $\phi$ is constant. Field lines, however, are more complex. They are always perpendicular to the electric potential,
+and flow from positive to negative charges. They are usually evenly spaced out, so their density remains constant throughout the simulation.
+These field lines are useful since they trace out the path, the trajectory, of a particle if it were to be released in the system.
+
+We can achieve the same effect using shaders. Inside the grid fragment shader we can use the coordinates of our pixel as an index and extract
+the relevant item from our electric potential buffer. We can then calculate the diffrenece between our current potential and the target potential, this will be used
+as our difference in the `antialias` function. To get multiple lines showing up instead of a single target, we can do a simple for loop and step through the
+targeted potentials, and merge the output from all of them.
+
+However, creating the field lines is more complicated than it sounds. For this simulation we will trace the position of particles as they move through the field,
+and then use those points to draw an outline. This means that density will not remain constant throughout the field, however this method is much simpler
+and will simplify the process. Therefore, for each positive charge on the screen (not negative since they consume particles), we will create $N$ number of
+particles spaced out equally around the charge. Then, we can loop $T$ time steps forward and progress each particle according the field and its current position.
+On each step we will sample its current location and store it inside another buffer. The indexing for this new buffer will work as following:
+
+$$
+i = (i_{\text{charge}} \cdot N + i_{\text{particle}}) \cdot W_{\text{max}} + \text{step}
+$$

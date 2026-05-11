@@ -188,7 +188,14 @@ impl Renderer {
             self.particle_manager.current_num_of_particles,
         );
 
-        self.electric_pipeline.draw(
+        self.electric_pipeline.draw_charge(
+            &mut rpass,
+            &constant_bind_groups,
+            &self.electric_manager.electric_bind_groups,
+            self.electric_manager.charges.len() as u32,
+        );
+
+        self.electric_pipeline.draw_tracing(
             &mut rpass,
             &constant_bind_groups,
             &self.electric_manager.electric_bind_groups,
