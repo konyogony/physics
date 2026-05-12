@@ -4,9 +4,7 @@
 
 use core::f32::consts::PI;
 use glam::{UVec3, Vec2, Vec3, Vec4};
-use shaders_shared::{
-    Field, PARTICLE_RADIUS, POLYGON_VERTICES, Particle, ShaderConstants, TIME_SCALE,
-};
+use shaders_shared::{Field, Particle, ShaderConstants};
 #[allow(unused_imports)]
 use spirv_std::num_traits::Float;
 use spirv_std::spirv;
@@ -29,7 +27,7 @@ pub fn particle_vs(
     let particle = particles[instance_id as usize];
     let center: Vec2 = particle.position.into();
 
-    let num_segments = POLYGON_VERTICES / 3;
+    let num_segments = constants.particle_options.polygon_vertices / 3;
     let triangle_id = vtx_id / 3;
     let corner_id = vtx_id % 3;
 
@@ -39,8 +37,8 @@ pub fn particle_vs(
         let angle_increment = (2.0 * PI) / num_segments as f32;
         let angle_offset = (triangle_id as f32 + (corner_id - 1) as f32) * angle_increment;
         Vec2::new(
-            PARTICLE_RADIUS * angle_offset.cos(),
-            PARTICLE_RADIUS * angle_offset.sin(),
+            constants.particle_options.particle_radius * angle_offset.cos(),
+            constants.particle_options.particle_radius * angle_offset.sin(),
         )
     };
 
@@ -87,8 +85,8 @@ pub fn particle_cs(
         // Calculate the velocity of the particle at its specific point in space & time.
         let velocity = electric_field[index].field;
         // Apply that velocity
-        particle.position[0] += velocity[0] * constants.dt * TIME_SCALE;
-        particle.position[1] += velocity[1] * constants.dt * TIME_SCALE;
+        particle.position[0] += velocity[0] * constants.dt * constants.particle_options.time_scale;
+        particle.position[1] += velocity[1] * constants.dt * constants.particle_options.time_scale;
 
         // Not to lose data, we create mut var, and we assign whole particle to the output.
         output[particle_index] = particle;

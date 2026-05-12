@@ -1,3 +1,4 @@
+#![allow(clippy::too_many_arguments)]
 use crate::wgpu_renderer::bind_group::GlobalBindGroupLayout;
 use crate::wgpu_renderer::managers::electric::ElectricManager;
 use crate::wgpu_renderer::managers::particle::ParticleManager;
@@ -38,6 +39,9 @@ impl Renderer {
         out_format: TextureFormat,
         size: PhysicalSize<u32>,
         charges_vec: Vec<Charge>,
+        max_steps: usize,
+        num_particles_per_charge: u32,
+        charge_strength: f32,
     ) -> anyhow::Result<Self> {
         // Create all the bind groups first. Global bind group just refers to the one holding
         // shader constants, hence global.
@@ -61,6 +65,9 @@ impl Renderer {
             &global_bind_group_layout,
             size,
             charges_vec,
+            max_steps,
+            num_particles_per_charge,
+            charge_strength,
         );
 
         let ui_manager = UIManager::new(window, &device, &config, out_format);
@@ -137,6 +144,7 @@ impl Renderer {
             &constant_bind_groups,
             &self.electric_manager.electric_bind_groups,
             self.electric_manager.charges.len() as u32,
+            self.electric_manager.num_particles_per_charge,
         );
 
         self.particle_pipeline.compute(
@@ -186,6 +194,7 @@ impl Renderer {
             &constant_bind_groups,
             &self.particle_manager.particle_bind_groups,
             self.particle_manager.current_num_of_particles,
+            self.ui_manager.committed_input_values.polygon_vertices,
         );
 
         self.electric_pipeline.draw_charge(
@@ -193,6 +202,7 @@ impl Renderer {
             &constant_bind_groups,
             &self.electric_manager.electric_bind_groups,
             self.electric_manager.charges.len() as u32,
+            self.ui_manager.committed_input_values.polygon_vertices,
         );
 
         self.electric_pipeline.draw_tracing(
@@ -200,6 +210,8 @@ impl Renderer {
             &constant_bind_groups,
             &self.electric_manager.electric_bind_groups,
             self.electric_manager.charges.len() as u32,
+            self.electric_manager.max_steps,
+            self.electric_manager.num_particles_per_charge,
         );
 
         // Yes this is voodo magick.

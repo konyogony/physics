@@ -1,7 +1,7 @@
 use crate::wgpu_renderer::bind_group::{
     ConstantsBindGroups, ElectricBindGroups, GlobalBindGroupLayout, ParticleBindGroups,
 };
-use shaders_shared::{POLYGON_VERTICES, ShaderConstants};
+use shaders_shared::ShaderConstants;
 use wgpu::{
     ColorTargetState, ColorWrites, ComputePass, Device, FragmentState, FrontFace, MultisampleState,
     PipelineLayoutDescriptor, PolygonMode, PrimitiveState, PrimitiveTopology, RenderPass,
@@ -108,6 +108,7 @@ impl ParticlePipeline {
         constants_bind_groups: &ConstantsBindGroups,
         particle_bind_groups: &ParticleBindGroups,
         num_particles: u32,
+        polygon_vertices: u32,
     ) {
         rpass.set_pipeline(&self.render_pipeline);
         rpass.set_bind_group(0, &constants_bind_groups.constants, &[]);
@@ -120,7 +121,7 @@ impl ParticlePipeline {
         }
 
         // For now we draw N number of particles, where each one consists of 6 vertices
-        rpass.draw(0..POLYGON_VERTICES, 0..num_particles);
+        rpass.draw(0..polygon_vertices, 0..num_particles);
     }
 
     pub fn compute(

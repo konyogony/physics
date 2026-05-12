@@ -4,10 +4,7 @@
 
 use core::f32::consts::PI;
 use glam::{UVec3, Vec2, Vec3, Vec4};
-use shaders_shared::{
-    CHARGE_RADIUS, Charge, EPSILON_SQ, Field, H, MAX_STEPS, NUM_PARTICLES_PER_CHARGE,
-    POLYGON_VERTICES, STEP_SIZE, STOP_DISTANCE, ShaderConstants, TracePoint,
-};
+use shaders_shared::{Charge, EPSILON_SQ, Field, H, ShaderConstants, TracePoint};
 #[allow(unused_imports)]
 use spirv_std::num_traits::Float;
 use spirv_std::spirv;
@@ -25,7 +22,7 @@ pub fn electric_vs(
     let charge = charges[instance_id as usize];
     let center: Vec2 = charge.position.into();
 
-    let num_segments = POLYGON_VERTICES / 3;
+    let num_segments = constants.particle_options.polygon_vertices / 3;
     let triangle_id = vtx_id / 3;
     let corner_id = vtx_id % 3;
 
@@ -34,10 +31,8 @@ pub fn electric_vs(
     } else {
         let angle_increment = (2.0 * PI) / num_segments as f32;
         let angle_offset = (triangle_id as f32 + (corner_id - 1) as f32) * angle_increment;
-        Vec2::new(
-            CHARGE_RADIUS * angle_offset.cos(),
-            CHARGE_RADIUS * angle_offset.sin(),
-        )
+        let radius = constants.electric_options.charge_radius;
+        Vec2::new(radius * angle_offset.cos(), radius * angle_offset.sin())
     };
 
     let pos_px = center + local_offset;
@@ -145,6 +140,7 @@ pub fn electric_field_cs(
     electric_field[index as usize] = field
 }
 
+// Compute shader for drawing traces, for field lines. We spawn particles around positive charges
 #[spirv(compute(threads(128), entry_point_name = "electric_tracing_cs"))]
 pub fn electric_tracing_cs(
     #[spirv(global_invocation_id)] global_invocation_id: UVec3,
@@ -154,31 +150,38 @@ pub fn electric_tracing_cs(
     #[spirv(descriptor_set = 1, binding = 3, storage_buffer)] tracing: &mut [TracePoint],
 ) {
     let particle_id = global_invocation_id.x as usize;
-    let charge_id = particle_id / NUM_PARTICLES_PER_CHARGE as usize;
+    let charge_id = particle_id / constants.electric_options.num_particles_per_charge as usize;
 
+    // Extract charge
     let charge = charges[charge_id];
     let center: Vec2 = charge.position.into();
 
+    // Only do positive charges
     if charge.charge < 0.0 {
-        for step in 0..MAX_STEPS {
-            tracing[particle_id * MAX_STEPS + step].pos = center.into();
+        // Set remaining data to last position so we get lines stopping at correct distance.
+        for step in 0..constants.electric_options.max_steps {
+            let tracing_index =
+                (particle_id as u32 * constants.electric_options.max_steps + step) as usize;
+            tracing[tracing_index].pos = center.into();
         }
         return;
     }
 
+    // Calculate the angle offset for each particle to trace around the charge
     let local_offset = {
-        let angle_increment = (2.0 * PI) / NUM_PARTICLES_PER_CHARGE as f32;
+        let angle_increment =
+            (2.0 * PI) / constants.electric_options.num_particles_per_charge as f32;
         let angle_offset = (particle_id as f32) * angle_increment;
-        Vec2::new(
-            CHARGE_RADIUS * angle_offset.cos(),
-            CHARGE_RADIUS * angle_offset.sin(),
-        )
+        let radius = constants.electric_options.charge_radius;
+        Vec2::new(radius * angle_offset.cos(), radius * angle_offset.sin())
     };
 
     let mut current_pos = center + local_offset;
 
-    for step in 0..MAX_STEPS {
-        let tracing_index = particle_id * MAX_STEPS + step;
+    // Loop through N iterations
+    for step in 0..constants.electric_options.max_steps {
+        let tracing_index =
+            (particle_id as u32 * constants.electric_options.max_steps + step) as usize;
         tracing[tracing_index].pos = current_pos.into();
 
         let x = current_pos.x.floor() as i32;
@@ -188,11 +191,12 @@ pub fn electric_tracing_cs(
             x <= 0 || x >= constants.width as i32 || y <= 0 || y >= constants.height as i32;
 
         let mut near_charge = false;
+        // Loop throuhg all charges and check if we are close to any of them
         for i in 0..constants.num_charges {
             let charge_pos = charges[i as usize].position;
             let charge_vec = Vec2::new(charge_pos[0], charge_pos[1]);
             let distance = (charge_vec - current_pos).length();
-            if distance <= STOP_DISTANCE {
+            if distance <= constants.electric_options.stop_distance {
                 near_charge = true;
                 break;
             }
@@ -200,8 +204,11 @@ pub fn electric_tracing_cs(
 
         // Basically if conditions are met, we just set remaining positions to same position
         if near_charge || out_of_bounds {
-            for remaining in (step + 1)..MAX_STEPS {
-                tracing[particle_id * MAX_STEPS + remaining].pos = current_pos.into()
+            for remaining in (step + 1)..constants.electric_options.max_steps {
+                let index = (particle_id as u32 * constants.electric_options.max_steps + remaining)
+                    as usize;
+
+                tracing[index].pos = current_pos.into()
             }
             break;
         }
@@ -209,23 +216,30 @@ pub fn electric_tracing_cs(
         let pos_index = x + y * constants.width as i32;
         let field_reading = electric_field[pos_index as usize];
 
+        // Extract velocity
         let velocity = field_reading.field;
         let vel = Vec2::new(velocity[0], velocity[1]);
         let strength = vel.length();
+
         // Terminate since basically stuck.
         if strength < 1e-6 {
-            for remaining in (step + 1)..MAX_STEPS {
-                tracing[particle_id * MAX_STEPS + remaining].pos = current_pos.into()
+            for remaining in (step + 1)..constants.electric_options.max_steps {
+                let index = (particle_id as u32 * constants.electric_options.max_steps + remaining)
+                    as usize;
+
+                tracing[index].pos = current_pos.into()
             }
             break;
         }
 
         // Normalized.
         let dir = vel / strength;
-        current_pos += dir * STEP_SIZE;
+        // Update position of particle
+        current_pos += dir * constants.electric_options.step_size;
     }
 }
 
+// Draw LINES (yes very cool) from P1 to P2, and so on.
 #[spirv(vertex(entry_point_name = "electric_tracing_vs"))]
 pub fn electric_tracing_vs(
     #[spirv(vertex_index)] vtx_id: i32,
@@ -237,11 +251,12 @@ pub fn electric_tracing_vs(
     if constants.draw_options.draw_field_lines == 0 {
         return;
     }
+
     let segment_id = vtx_id / 2;
     let endpoint = vtx_id % 2;
     let step = segment_id + endpoint;
 
-    let index = instance_id * MAX_STEPS as i32 + step;
+    let index = instance_id * constants.electric_options.max_steps as i32 + step;
     let point = tracing[index as usize];
 
     let uv = Vec2::new(

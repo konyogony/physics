@@ -1,7 +1,7 @@
 use crate::wgpu_renderer::bind_group::{
     ConstantsBindGroups, ElectricBindGroups, GlobalBindGroupLayout,
 };
-use shaders_shared::{MAX_STEPS, NUM_PARTICLES_PER_CHARGE, POLYGON_VERTICES, ShaderConstants};
+use shaders_shared::ShaderConstants;
 use wgpu::{
     ColorTargetState, ColorWrites, ComputePipeline, ComputePipelineDescriptor, FragmentState,
     FrontFace, MultisampleState, PolygonMode, PrimitiveState, PrimitiveTopology, RenderPass,
@@ -162,12 +162,13 @@ impl ElectricPipeline {
         constants_bind_groups: &ConstantsBindGroups,
         electric_bind_groups: &ElectricBindGroups,
         num_charges: u32,
+        polygon_vertices: u32,
     ) {
         rpass.set_pipeline(&self.charge_render_pipeline);
         rpass.set_bind_group(0, &constants_bind_groups.constants, &[]);
         rpass.set_bind_group(1, &electric_bind_groups.electric, &[]);
 
-        rpass.draw(0..POLYGON_VERTICES, 0..num_charges);
+        rpass.draw(0..polygon_vertices, 0..num_charges);
     }
 
     pub fn draw_tracing(
@@ -176,14 +177,16 @@ impl ElectricPipeline {
         constants_bind_groups: &ConstantsBindGroups,
         electric_bind_groups: &ElectricBindGroups,
         num_charges: u32,
+        max_steps: usize,
+        num_particles_per_charge: u32,
     ) {
         rpass.set_pipeline(&self.tracing_render_pipeline);
         rpass.set_bind_group(0, &constants_bind_groups.constants, &[]);
         rpass.set_bind_group(1, &electric_bind_groups.electric, &[]);
 
         rpass.draw(
-            0..((MAX_STEPS as u32 - 1) * 2),
-            0..(num_charges * NUM_PARTICLES_PER_CHARGE),
+            0..((max_steps as u32 - 1) * 2),
+            0..(num_charges * num_particles_per_charge),
         );
     }
 
@@ -221,11 +224,12 @@ impl ElectricPipeline {
         constants_bind_groups: &ConstantsBindGroups,
         electric_bind_groups: &ElectricBindGroups,
         num_charges: u32,
+        num_particles_per_charge: u32,
     ) {
         cpass.set_pipeline(&self.compute_tracing_pipeline);
         cpass.set_bind_group(0, &constants_bind_groups.constants, &[]);
         cpass.set_bind_group(1, &electric_bind_groups.electric, &[]);
 
-        cpass.dispatch_workgroups((num_charges * NUM_PARTICLES_PER_CHARGE).div_ceil(128), 1, 1);
+        cpass.dispatch_workgroups((num_charges * num_particles_per_charge).div_ceil(128), 1, 1);
     }
 }

@@ -3,7 +3,7 @@ use crate::wgpu_renderer::renderer::Renderer;
 use crate::wgpu_renderer::swapchain::SwapchainManager;
 use crate::wgpu_renderer::{keyboard::Keyboard, mouse::Mouse};
 use anyhow::Context;
-use shaders_shared::{Charge, DrawOptions, ShaderConstants};
+use shaders_shared::{Charge, DrawOptions, ElectricOptions, ParticleOptions, ShaderConstants};
 use std::sync::Arc;
 use std::time::Instant;
 use winit::{
@@ -13,6 +13,9 @@ use winit::{
     keyboard::{Key, NamedKey},
     window::{Window, WindowId},
 };
+pub const DEFAULT_MAX_STEPS: usize = 10000;
+pub const DEFAULT_NUM_PARTICLES_PER_CHARGE: u32 = 12;
+pub const DEFAULT_CHARGE_STRENGTH: f32 = 0.1;
 
 // State struct will be managing all the sub-processes
 pub struct State {
@@ -88,22 +91,32 @@ impl State {
         let config = swapchain.get_config().unwrap();
         let format = swapchain.get_format();
 
-        let scale = 0.1;
         let charges = vec![
             Charge {
-                charge: 1.0 * scale,
+                charge: 1.0,
                 position: [size.width as f32 / 2.0 + 200.0, size.height as f32 / 2.0],
                 _pad: 0.0,
             },
             Charge {
-                charge: -scale,
+                charge: -1.0,
                 position: [size.width as f32 / 2.0 - 200.0, size.height as f32 / 2.0],
                 _pad: 0.0,
             },
         ];
 
         // Create a renderer
-        let renderer = Renderer::new(&window, device, queue, config, format, size, charges)?;
+        let renderer = Renderer::new(
+            &window,
+            device,
+            queue,
+            config,
+            format,
+            size,
+            charges,
+            DEFAULT_MAX_STEPS,
+            DEFAULT_NUM_PARTICLES_PER_CHARGE,
+            DEFAULT_CHARGE_STRENGTH,
+        )?;
 
         // Create a mouse manager-ish
         let mouse = Mouse::new();
@@ -180,6 +193,15 @@ impl State {
                     &self.renderer.queue,
                     new_size,
                     &self.renderer.global_bind_group_layout,
+                    self.renderer.ui_manager.committed_input_values.max_steps,
+                    self.renderer
+                        .ui_manager
+                        .committed_input_values
+                        .num_particles_per_charge,
+                    self.renderer
+                        .ui_manager
+                        .committed_input_values
+                        .charge_strength,
                 );
 
                 let config = self.swapchain.get_config().unwrap();
@@ -250,6 +272,32 @@ impl State {
         // Update the last frame feild.
         self.last_frame = Instant::now();
 
+        let input_values = self.renderer.ui_manager.input_values;
+        let committed = self.renderer.ui_manager.committed_input_values;
+
+        // If number of particle per charge changed OR if max steps changed OR if charge strength
+        // changed, since all of them will require to re-create the buffers fully.
+        let need_to_recreate = input_values.num_particles_per_charge
+            != committed.num_particles_per_charge
+            || input_values.max_steps != committed.max_steps
+            || input_values.charge_strength != committed.charge_strength;
+
+        self.renderer.ui_manager.committed_input_values = input_values;
+
+        if need_to_recreate {
+            // Resize can be used as a re-create function, we just have to use same window size as
+            // before.
+            self.renderer.electric_manager.resize(
+                &self.renderer.device,
+                &self.renderer.queue,
+                self.renderer.electric_manager.size,
+                &self.renderer.global_bind_group_layout,
+                input_values.max_steps,
+                input_values.num_particles_per_charge,
+                input_values.charge_strength,
+            );
+        }
+
         // We call the render function, which will give us the view texture
         self.swapchain.render(|render_target| {
             // Then we call the renderer and pass in all the params
@@ -269,13 +317,55 @@ impl State {
                     //epsilon_naught: ((8.9_f32).powi(-12)),
                     epsilon_naught: ((8.9_f32).powi(-8)),
                     num_charges: self.renderer.electric_manager.charges.len() as u32,
-                    color_value: self.renderer.ui_manager.input_values.color_value,
+                    color_value: self.renderer.ui_manager.committed_input_values.color_value,
+                    _pad: [0.0; 3],
                     draw_options: DrawOptions {
-                        draw_grid: self.renderer.ui_manager.input_values.draw_grid as u32,
-                        draw_vec: self.renderer.ui_manager.input_values.draw_vec as u32,
-                        draw_potential: self.renderer.ui_manager.input_values.draw_potential as u32,
-                        draw_field_lines: self.renderer.ui_manager.input_values.draw_field_lines
-                            as u32,
+                        draw_grid: self.renderer.ui_manager.committed_input_values.draw_grid as u32,
+                        draw_vec: self.renderer.ui_manager.committed_input_values.draw_vec as u32,
+                        draw_potential: self
+                            .renderer
+                            .ui_manager
+                            .committed_input_values
+                            .draw_potential as u32,
+                        draw_field_lines: self
+                            .renderer
+                            .ui_manager
+                            .committed_input_values
+                            .draw_field_lines as u32,
+                    },
+                    particle_options: ParticleOptions {
+                        time_scale: self.renderer.ui_manager.committed_input_values.time_scale,
+                        particle_radius: self
+                            .renderer
+                            .ui_manager
+                            .committed_input_values
+                            .particle_radius,
+                        polygon_vertices: self
+                            .renderer
+                            .ui_manager
+                            .committed_input_values
+                            .polygon_vertices,
+                        _pad: 0.0,
+                    },
+                    electric_options: ElectricOptions {
+                        charge_radius: self
+                            .renderer
+                            .ui_manager
+                            .committed_input_values
+                            .charge_radius,
+                        num_particles_per_charge: self
+                            .renderer
+                            .ui_manager
+                            .committed_input_values
+                            .num_particles_per_charge,
+                        max_steps: self.renderer.ui_manager.committed_input_values.max_steps as u32,
+                        step_size: self.renderer.ui_manager.committed_input_values.step_size,
+                        stop_distance: self
+                            .renderer
+                            .ui_manager
+                            .committed_input_values
+                            .stop_distance,
+                        _pad: [0.0; 2],
                     },
                 },
                 render_target,

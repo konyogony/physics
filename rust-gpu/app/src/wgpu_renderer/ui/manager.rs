@@ -1,6 +1,7 @@
-use egui::{Context, DragValue};
 use wgpu::{CommandEncoder, Device, Queue, SurfaceConfiguration, TextureFormat};
 use winit::{event::WindowEvent, window::Window};
+
+use crate::wgpu_renderer::ui::ui::UI;
 
 pub const DEFAULT_CONFIG: InputValues = InputValues {
     draw_grid: true,
@@ -8,6 +9,15 @@ pub const DEFAULT_CONFIG: InputValues = InputValues {
     draw_potential: false,
     draw_field_lines: false,
     color_value: 5.0,
+    time_scale: 1.0,
+    particle_radius: 10.0,
+    polygon_vertices: 48,
+    charge_radius: 15.0,
+    num_particles_per_charge: 60,
+    max_steps: 1100,
+    step_size: 3.0,
+    stop_distance: 10.0,
+    charge_strength: 0.5,
 };
 
 #[derive(Default, Clone, Copy)]
@@ -17,6 +27,15 @@ pub struct InputValues {
     pub draw_potential: bool,
     pub draw_field_lines: bool,
     pub color_value: f32,
+    pub time_scale: f32,
+    pub particle_radius: f32,
+    pub polygon_vertices: u32,
+    pub charge_radius: f32,
+    pub num_particles_per_charge: u32,
+    pub max_steps: usize,
+    pub step_size: f32,
+    pub stop_distance: f32,
+    pub charge_strength: f32,
 }
 
 pub struct UIManager {
@@ -25,6 +44,7 @@ pub struct UIManager {
     pub renderer: egui_wgpu::Renderer,
     pub screen_descriptor: egui_wgpu::ScreenDescriptor,
     pub input_values: InputValues,
+    pub committed_input_values: InputValues,
     pub clipped_primitives: Vec<egui::ClippedPrimitive>,
 }
 
@@ -59,6 +79,7 @@ impl UIManager {
             state,
             screen_descriptor,
             input_values: DEFAULT_CONFIG,
+            committed_input_values: DEFAULT_CONFIG,
             clipped_primitives: Vec::new(),
         }
     }
@@ -88,7 +109,9 @@ impl UIManager {
         let raw_input = self.state.take_egui_input(window);
         let context = self.state.egui_ctx().clone();
 
-        let output = context.run_ui(raw_input, |ctx| self.ui(ctx));
+        let output = context.run_ui(raw_input, |ctx| {
+            UI::new().main(self, ctx);
+        });
 
         self.state
             .handle_platform_output(window, output.platform_output);
@@ -117,36 +140,5 @@ impl UIManager {
     pub fn draw(&mut self, rpass: &mut wgpu::RenderPass<'static>) {
         self.renderer
             .render(rpass, &self.clipped_primitives, &self.screen_descriptor);
-    }
-
-    pub fn ui(&mut self, ctx: &Context) {
-        egui::Window::new("Configuration")
-            .collapsible(true)
-            .resizable(true)
-            .default_width(400.0)
-            .show(ctx, |ui| {
-                egui::ScrollArea::vertical().show(ui, |ui| {
-                    ui.vertical(|ui| {
-                        ui.checkbox(&mut self.input_values.draw_grid, "Draw Grid");
-                        ui.checkbox(&mut self.input_values.draw_vec, "Draw Vector Arrows");
-                        ui.checkbox(
-                            &mut self.input_values.draw_potential,
-                            "Draw Equipotential Lines",
-                        );
-                        ui.checkbox(&mut self.input_values.draw_field_lines, "Draw Field Lines");
-                    });
-                    ui.horizontal(|ui| {
-                        ui.add(DragValue::new(&mut self.input_values.color_value));
-                        ui.label("Color Value");
-                    });
-                    ui.collapsing("Controls", |ui| {
-                        ui.label("F10 to toggle menu");
-                        ui.label("F11 to toggle fullscreen");
-                        ui.label("X to switch charge");
-                        ui.label("Ctrl+C to clear charges");
-                        ui.label("Shift+C to clear particles");
-                    });
-                });
-            });
     }
 }

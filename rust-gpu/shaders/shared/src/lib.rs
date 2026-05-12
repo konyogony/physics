@@ -19,15 +19,20 @@ pub struct Particle {
     pub _pad: f32,
 }
 
-pub const TIME_SCALE: f32 = 1.0;
+#[derive(Default, Copy, Clone, Pod, Zeroable)]
+#[repr(C)]
+pub struct ParticleOptions {
+    pub time_scale: f32,
+    pub particle_radius: f32,
+    pub polygon_vertices: u32,
+    pub _pad: f32,
+}
+
 pub const MAX_PARTICLES: u32 = 262144;
-pub const PARTICLE_RADIUS: f32 = 10.0;
-pub const POLYGON_VERTICES: u32 = 48;
 
 // --- From Electric Shader ---
 // Softening factor
 pub const EPSILON_SQ: f32 = 1.0;
-pub const CHARGE_RADIUS: f32 = 15.0;
 pub const MAX_CHARGES: u32 = 100;
 pub const DV: f32 = 1.0;
 pub const H: i32 = 1;
@@ -53,10 +58,16 @@ pub struct TracePoint {
     pub pos: [f32; 2],
 }
 
-pub const NUM_PARTICLES_PER_CHARGE: u32 = 12;
-pub const MAX_STEPS: usize = 11000;
-pub const STEP_SIZE: f32 = 3.0;
-pub const STOP_DISTANCE: f32 = 10.0;
+#[derive(Default, Copy, Clone, Pod, Zeroable)]
+#[repr(C)]
+pub struct ElectricOptions {
+    pub charge_radius: f32,
+    pub num_particles_per_charge: u32,
+    pub max_steps: u32,
+    pub step_size: f32,
+    pub stop_distance: f32,
+    pub _pad: [f32; 2],
+}
 
 // --- From Grid Shader ---
 
@@ -84,13 +95,22 @@ pub struct ShaderConstants {
     pub height: u32,
     pub aspect_ratio: f32,
     pub time: f32,
+    //  16
     pub dt: f32,
     // To know if i am within range
     pub num_particles: u32,
     pub epsilon_naught: f32,
     pub num_charges: u32,
+    // 32
     pub color_value: f32,
+    pub _pad: [f32; 3],
+    // 48
     pub draw_options: DrawOptions,
+    // 64
+    pub particle_options: ParticleOptions,
+    // 80
+    pub electric_options: ElectricOptions,
+    // 112
 }
 
 #[derive(Default, Copy, Clone, Pod, Zeroable)]
