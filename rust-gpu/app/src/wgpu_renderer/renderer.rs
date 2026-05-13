@@ -194,7 +194,10 @@ impl Renderer {
             &constant_bind_groups,
             &self.particle_manager.particle_bind_groups,
             self.particle_manager.current_num_of_particles,
-            self.ui_manager.committed_input_values.polygon_vertices,
+            self.ui_manager
+                .committed_input_values
+                .particle_ui_options
+                .polygon_vertices,
         );
 
         self.electric_pipeline.draw_charge(
@@ -202,7 +205,10 @@ impl Renderer {
             &constant_bind_groups,
             &self.electric_manager.electric_bind_groups,
             self.electric_manager.charges.len() as u32,
-            self.ui_manager.committed_input_values.polygon_vertices,
+            self.ui_manager
+                .committed_input_values
+                .particle_ui_options
+                .polygon_vertices,
         );
 
         self.electric_pipeline.draw_tracing(

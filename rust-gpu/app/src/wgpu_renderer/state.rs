@@ -193,14 +193,20 @@ impl State {
                     &self.renderer.queue,
                     new_size,
                     &self.renderer.global_bind_group_layout,
-                    self.renderer.ui_manager.committed_input_values.max_steps,
                     self.renderer
                         .ui_manager
                         .committed_input_values
+                        .electric_ui_options
+                        .max_steps,
+                    self.renderer
+                        .ui_manager
+                        .committed_input_values
+                        .electric_ui_options
                         .num_particles_per_charge,
                     self.renderer
                         .ui_manager
                         .committed_input_values
+                        .electric_ui_options
                         .charge_strength,
                 );
 
@@ -277,10 +283,7 @@ impl State {
 
         // If number of particle per charge changed OR if max steps changed OR if charge strength
         // changed, since all of them will require to re-create the buffers fully.
-        let need_to_recreate = input_values.num_particles_per_charge
-            != committed.num_particles_per_charge
-            || input_values.max_steps != committed.max_steps
-            || input_values.charge_strength != committed.charge_strength;
+        let need_to_recreate = input_values.electric_ui_options != committed.electric_ui_options;
 
         self.renderer.ui_manager.committed_input_values = input_values;
 
@@ -292,10 +295,62 @@ impl State {
                 &self.renderer.queue,
                 self.renderer.electric_manager.size,
                 &self.renderer.global_bind_group_layout,
-                input_values.max_steps,
-                input_values.num_particles_per_charge,
-                input_values.charge_strength,
+                input_values.electric_ui_options.max_steps,
+                input_values.electric_ui_options.num_particles_per_charge,
+                input_values.electric_ui_options.charge_strength,
             );
+        }
+
+        if self
+            .renderer
+            .ui_manager
+            .input_values
+            .charge_spawn_ui_options
+            .toggle_charge
+        {
+            self.renderer
+                .ui_manager
+                .input_values
+                .charge_spawn_ui_options
+                .toggle_charge = false;
+
+            self.renderer.electric_manager.toggle_charge();
+        }
+
+        if self
+            .renderer
+            .ui_manager
+            .input_values
+            .charge_spawn_ui_options
+            .spawn
+        {
+            self.renderer
+                .ui_manager
+                .input_values
+                .charge_spawn_ui_options
+                .spawn = false;
+
+            let pos_grid = [
+                self.renderer
+                    .ui_manager
+                    .input_values
+                    .charge_spawn_ui_options
+                    .x,
+                self.renderer
+                    .ui_manager
+                    .input_values
+                    .charge_spawn_ui_options
+                    .y,
+            ];
+
+            let pos = [
+                pos_grid[0] + self.renderer.electric_manager.size.width as f32 / 2.0,
+                -pos_grid[1] + self.renderer.electric_manager.size.height as f32 / 2.0,
+            ];
+
+            self.renderer
+                .electric_manager
+                .add_charge(&self.renderer.queue, pos);
         }
 
         // We call the render function, which will give us the view texture
@@ -319,54 +374,15 @@ impl State {
                     num_charges: self.renderer.electric_manager.charges.len() as u32,
                     color_value: self.renderer.ui_manager.committed_input_values.color_value,
                     _pad: [0.0; 3],
-                    draw_options: DrawOptions {
-                        draw_grid: self.renderer.ui_manager.committed_input_values.draw_grid as u32,
-                        draw_vec: self.renderer.ui_manager.committed_input_values.draw_vec as u32,
-                        draw_potential: self
-                            .renderer
-                            .ui_manager
-                            .committed_input_values
-                            .draw_potential as u32,
-                        draw_field_lines: self
-                            .renderer
-                            .ui_manager
-                            .committed_input_values
-                            .draw_field_lines as u32,
-                    },
-                    particle_options: ParticleOptions {
-                        time_scale: self.renderer.ui_manager.committed_input_values.time_scale,
-                        particle_radius: self
-                            .renderer
-                            .ui_manager
-                            .committed_input_values
-                            .particle_radius,
-                        polygon_vertices: self
-                            .renderer
-                            .ui_manager
-                            .committed_input_values
-                            .polygon_vertices,
-                        _pad: 0.0,
-                    },
-                    electric_options: ElectricOptions {
-                        charge_radius: self
-                            .renderer
-                            .ui_manager
-                            .committed_input_values
-                            .charge_radius,
-                        num_particles_per_charge: self
-                            .renderer
-                            .ui_manager
-                            .committed_input_values
-                            .num_particles_per_charge,
-                        max_steps: self.renderer.ui_manager.committed_input_values.max_steps as u32,
-                        step_size: self.renderer.ui_manager.committed_input_values.step_size,
-                        stop_distance: self
-                            .renderer
-                            .ui_manager
-                            .committed_input_values
-                            .stop_distance,
-                        _pad: [0.0; 2],
-                    },
+                    draw_options: DrawOptions::from(
+                        &self.renderer.ui_manager.committed_input_values,
+                    ),
+                    particle_options: ParticleOptions::from(
+                        &self.renderer.ui_manager.committed_input_values,
+                    ),
+                    electric_options: ElectricOptions::from(
+                        &self.renderer.ui_manager.committed_input_values,
+                    ),
                 },
                 render_target,
             )

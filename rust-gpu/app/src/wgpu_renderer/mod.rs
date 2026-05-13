@@ -1,5 +1,7 @@
 use crate::wgpu_renderer::state::State;
+use crate::wgpu_renderer::ui::manager::InputValues;
 use pollster::block_on;
+use shaders_shared::{DrawOptions, ElectricOptions, ParticleOptions};
 use winit::event_loop::EventLoop;
 use winit::{
     application::ApplicationHandler, event::WindowEvent, event_loop::ActiveEventLoop,
@@ -48,4 +50,42 @@ pub fn main() -> anyhow::Result<()> {
     let mut app = App::default();
     event_loop.run_app(&mut app)?;
     Ok(())
+}
+
+// Implement all the stuff needed for constnats, didnt know where to put so now it lives here.
+// Saves space inside state.rs
+
+impl From<&InputValues> for ElectricOptions {
+    fn from(value: &InputValues) -> Self {
+        Self {
+            charge_radius: value.electric_ui_options.charge_radius,
+            num_particles_per_charge: value.electric_ui_options.num_particles_per_charge,
+            max_steps: value.electric_ui_options.max_steps as u32,
+            step_size: value.electric_ui_options.step_size,
+            stop_distance: value.electric_ui_options.stop_distance,
+            _pad: [0.0; 2],
+        }
+    }
+}
+
+impl From<&InputValues> for DrawOptions {
+    fn from(value: &InputValues) -> Self {
+        Self {
+            draw_grid: value.draw_ui_options.draw_grid as u32,
+            draw_vec: value.draw_ui_options.draw_vec as u32,
+            draw_potential: value.draw_ui_options.draw_potential as u32,
+            draw_field_lines: value.draw_ui_options.draw_field_lines as u32,
+        }
+    }
+}
+
+impl From<&InputValues> for ParticleOptions {
+    fn from(value: &InputValues) -> Self {
+        Self {
+            time_scale: value.particle_ui_options.time_scale,
+            particle_radius: value.particle_ui_options.particle_radius,
+            polygon_vertices: value.particle_ui_options.polygon_vertices,
+            _pad: 0.0,
+        }
+    }
 }

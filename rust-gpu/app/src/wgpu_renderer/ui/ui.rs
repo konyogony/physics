@@ -1,5 +1,5 @@
 use crate::wgpu_renderer::ui::manager::UIManager;
-use egui::{Context, DragValue, Ui};
+use egui::{Button, Context, DragValue, Ui};
 
 pub struct UI;
 
@@ -21,7 +21,7 @@ impl UI {
                     self.drag_value(ui, &mut manager.input_values.color_value, "Color Value");
                     self.drag_value(
                         ui,
-                        &mut manager.input_values.charge_strength,
+                        &mut manager.input_values.electric_ui_options.charge_strength,
                         "Charge Strength",
                     );
                     self.controls(ui);
@@ -32,14 +32,20 @@ impl UI {
     pub fn draw_options(&self, manager: &mut UIManager, ui: &mut Ui) {
         ui.collapsing("Draw Options", |ui| {
             ui.vertical(|ui| {
-                ui.checkbox(&mut manager.input_values.draw_grid, "Draw Grid");
-                ui.checkbox(&mut manager.input_values.draw_vec, "Draw Vector Arrows");
                 ui.checkbox(
-                    &mut manager.input_values.draw_potential,
+                    &mut manager.input_values.draw_ui_options.draw_grid,
+                    "Draw Grid",
+                );
+                ui.checkbox(
+                    &mut manager.input_values.draw_ui_options.draw_vec,
+                    "Draw Vector Arrows",
+                );
+                ui.checkbox(
+                    &mut manager.input_values.draw_ui_options.draw_potential,
                     "Draw Equipotential Lines",
                 );
                 ui.checkbox(
-                    &mut manager.input_values.draw_field_lines,
+                    &mut manager.input_values.draw_ui_options.draw_field_lines,
                     "Draw Field Lines",
                 );
             });
@@ -51,13 +57,17 @@ impl UI {
             ui.vertical(|ui| {
                 self.drag_value(
                     ui,
-                    &mut manager.input_values.polygon_vertices,
+                    &mut manager.input_values.particle_ui_options.polygon_vertices,
                     "Polygon Vertices",
                 );
-                self.drag_value(ui, &mut manager.input_values.time_scale, "Time Scale");
                 self.drag_value(
                     ui,
-                    &mut manager.input_values.particle_radius,
+                    &mut manager.input_values.particle_ui_options.time_scale,
+                    "Time Scale",
+                );
+                self.drag_value(
+                    ui,
+                    &mut manager.input_values.particle_ui_options.particle_radius,
                     "Particle Radius",
                 );
             });
@@ -67,20 +77,66 @@ impl UI {
     pub fn electric_options(&self, manager: &mut UIManager, ui: &mut Ui) {
         ui.collapsing("Electric Options", |ui| {
             ui.vertical(|ui| {
-                self.drag_value(ui, &mut manager.input_values.charge_radius, "Charge Radius");
+                self.drag_value(
+                    ui,
+                    &mut manager.input_values.electric_ui_options.charge_radius,
+                    "Charge Radius",
+                );
 
                 self.drag_value(
                     ui,
-                    &mut manager.input_values.num_particles_per_charge,
+                    &mut manager
+                        .input_values
+                        .electric_ui_options
+                        .num_particles_per_charge,
                     "Tracing Points Per Charge",
                 );
 
-                self.drag_value(ui, &mut manager.input_values.max_steps, "Max Tracing Steps");
+                self.drag_value(
+                    ui,
+                    &mut manager.input_values.electric_ui_options.max_steps,
+                    "Max Tracing Steps",
+                );
 
-                self.drag_value(ui, &mut manager.input_values.step_size, "Tracing Step Size");
+                self.drag_value(
+                    ui,
+                    &mut manager.input_values.electric_ui_options.step_size,
+                    "Tracing Step Size",
+                );
 
-                self.drag_value(ui, &mut manager.input_values.stop_distance, "Stop Distance");
+                self.drag_value(
+                    ui,
+                    &mut manager.input_values.electric_ui_options.stop_distance,
+                    "Stop Distance",
+                );
             });
+        });
+
+        ui.collapsing("Charge Creation", |ui| {
+            ui.vertical(|ui| {
+                self.drag_value(
+                    ui,
+                    &mut manager.input_values.charge_spawn_ui_options.x,
+                    "Charge Spawn X",
+                );
+                self.drag_value(
+                    ui,
+                    &mut manager.input_values.charge_spawn_ui_options.y,
+                    "Charge Spawn Y",
+                );
+
+                self.button_toggle(
+                    ui,
+                    &mut manager.input_values.charge_spawn_ui_options.toggle_charge,
+                    "Switch Charge",
+                );
+
+                self.button_toggle(
+                    ui,
+                    &mut manager.input_values.charge_spawn_ui_options.spawn,
+                    "Spawn",
+                );
+            })
         });
     }
 
@@ -101,6 +157,14 @@ impl UI {
         ui.horizontal(|ui| {
             ui.add(DragValue::new(value).update_while_editing(false));
             ui.label(label);
+        });
+    }
+
+    pub fn button_toggle(&self, ui: &mut Ui, value: &mut bool, label: &str) {
+        ui.horizontal(|ui| {
+            if ui.add(Button::new(label)).clicked() {
+                *value = true
+            }
         });
     }
 }

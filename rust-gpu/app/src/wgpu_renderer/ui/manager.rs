@@ -4,32 +4,71 @@ use winit::{event::WindowEvent, window::Window};
 use crate::wgpu_renderer::ui::ui::UI;
 
 pub const DEFAULT_CONFIG: InputValues = InputValues {
-    draw_grid: true,
-    draw_vec: true,
-    draw_potential: false,
-    draw_field_lines: false,
+    draw_ui_options: DrawUIOptions {
+        draw_grid: true,
+        draw_vec: true,
+        draw_potential: false,
+        draw_field_lines: false,
+    },
+    particle_ui_options: ParticleUIOptions {
+        time_scale: 1.0,
+        particle_radius: 10.0,
+        polygon_vertices: 72,
+    },
+    electric_ui_options: ElectricUIOptions {
+        charge_radius: 15.0,
+        num_particles_per_charge: 60,
+        max_steps: 550,
+        step_size: 3.0,
+        stop_distance: 10.0,
+        charge_strength: 1.0,
+    },
+    charge_spawn_ui_options: ChargeSpawnUIOptions {
+        x: 0.0,
+        y: 0.0,
+        toggle_charge: false,
+        spawn: false,
+    },
     color_value: 5.0,
-    time_scale: 1.0,
-    particle_radius: 10.0,
-    polygon_vertices: 48,
-    charge_radius: 15.0,
-    num_particles_per_charge: 60,
-    max_steps: 1100,
-    step_size: 3.0,
-    stop_distance: 10.0,
-    charge_strength: 0.5,
 };
 
-#[derive(Default, Clone, Copy)]
+#[derive(Default, Clone, Copy, PartialEq)]
 pub struct InputValues {
+    pub draw_ui_options: DrawUIOptions,
+    pub particle_ui_options: ParticleUIOptions,
+    pub electric_ui_options: ElectricUIOptions,
+    pub charge_spawn_ui_options: ChargeSpawnUIOptions,
+    pub color_value: f32,
+}
+
+#[derive(Default, Clone, Copy, PartialEq)]
+pub struct DrawUIOptions {
     pub draw_grid: bool,
     pub draw_vec: bool,
     pub draw_potential: bool,
     pub draw_field_lines: bool,
-    pub color_value: f32,
+}
+
+#[derive(Default, Clone, Copy, PartialEq)]
+pub struct ParticleUIOptions {
     pub time_scale: f32,
     pub particle_radius: f32,
     pub polygon_vertices: u32,
+}
+
+#[derive(Default, Clone, Copy, PartialEq)]
+pub struct ChargeSpawnUIOptions {
+    // These two r gonna be relative to center of screen, and then in state we move them to correct
+    // position in accordance to the current screen size.
+    pub x: f32,
+    pub y: f32,
+    // For now we are only limiting to charges with same strength, but only neg / pos
+    pub toggle_charge: bool,
+    pub spawn: bool,
+}
+
+#[derive(Default, Clone, Copy, PartialEq)]
+pub struct ElectricUIOptions {
     pub charge_radius: f32,
     pub num_particles_per_charge: u32,
     pub max_steps: usize,

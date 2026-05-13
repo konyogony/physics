@@ -80,7 +80,6 @@ impl ElectricManager {
             charge.position[0] *= width_transform;
             charge.position[1] *= height_transform;
 
-            println!("{charge_strength}");
             // Basically replace all charges with a new value + check if negative
             if charge.charge < 0.0 {
                 charge.charge = -charge_strength
@@ -131,7 +130,6 @@ impl ElectricManager {
         } else {
             self.next_charge = self.charge_strength
         }
-        println!("{}", self.next_charge);
     }
 
     pub fn remove_all_charges(&mut self) {
