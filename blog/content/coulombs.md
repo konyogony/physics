@@ -316,6 +316,10 @@ the relevant item from our electric potential buffer. We can then calculate the 
 as our difference in the `antialias` function. To get multiple lines showing up instead of a single target, we can do a simple for loop and step through the
 targeted potentials, and merge the output from all of them.
 
+<div class="img-container">
+  <img src="./assets/equipotential.webp" alt="Equipotential Lines" />
+</div>
+
 However, creating the field lines is more complicated than it sounds. For this simulation we will trace the position of particles as they move through the field,
 and then use those points to draw an outline. This means that density will not remain constant throughout the field, however this method is much simpler
 and will simplify the process. Therefore, for each positive charge on the screen (not negative since they consume particles), we will create $N$ number of
@@ -325,3 +329,80 @@ On each step we will sample its current location and store it inside another buf
 $$
 i = (i_{\text{charge}} \cdot N + i_{\text{particle}}) \cdot W_{\text{max}} + \text{step}
 $$
+
+```rs
+// Compute shader for drawing traces, for field lines. We spawn particles around positive charges
+{
+    // Extract particle & charge_id + what charge we are processing
+
+    // Only do positive charges
+    if charge.charge < 0.0 {
+        // Set remaining data for this particle to current position, so that lines generated end here.
+        break;
+    }
+
+    // Calculate the angle offset for each particle to trace around the charge
+    let local_offset = {
+        let angle_increment =
+            (2.0 * PI) / constants.electric_options.num_particles_per_charge as f32;
+        let angle_offset = (particle_id as f32) * angle_increment;
+        let radius = constants.electric_options.charge_radius;
+        Vec2::new(radius * angle_offset.cos(), radius * angle_offset.sin())
+    };
+
+    let mut current_pos = center + local_offset;
+
+    // Loop through N iterations
+    for step in 0..constants.electric_options.max_steps {
+        // Get our index
+        let tracing_index =
+            (particle_id as u32 * constants.electric_options.max_steps + step) as usize;
+        tracing[tracing_index].pos = current_pos.into();
+
+        // Extract x, y and check if out of bounds
+
+        let mut near_charge = false;
+        // ...Loop throuhg all charges and check if we are close to any of them
+        // Hidden from here since trivial
+
+        // Basically if conditions are met, we just set remaining positions to same position
+        if near_charge || out_of_bounds {
+            // Set remaining data for this particle to current position, so that lines generated end here.
+            break;
+        }
+
+        let pos_index = x + y * constants.width as i32;
+        let field_reading = electric_field[pos_index as usize];
+
+        // Extract velocity
+        let velocity = field_reading.field;
+        let vel = Vec2::new(velocity[0], velocity[1]);
+        let strength = vel.length();
+
+        // Terminate since basically stuck.
+        if strength < 1e-6 {
+            // Set remaining data for this particle to current position, so that lines generated end here.
+            break;
+        }
+
+        // Normalized.
+        let dir = vel / strength;
+        // Update position of particle
+        current_pos += dir * constants.electric_options.step_size;
+    }
+}
+```
+
+After the compute shader finishes tracing the path of every particle for every positive charge, a vertex shader uses the `PrimitiveTopology::LineStrip` rendering technique to generate lines between each pair of points.
+This eliminates the need to manually loop through each of the points and draw correct vertices, however comes at a cost of not being able to adjust the thickness of lines.
+
+<div class="img-container">
+  <img src="./assets/field-1.webp" alt="Field Lines" />
+</div>
+
+<div class="img-container">
+  <img src="./assets/field-2.webp" alt="Field Lines" />
+</div>
+<div class="img-container">
+  <img src="./assets/field-3.webp" alt="Field Lines" />
+</div>

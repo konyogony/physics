@@ -91,25 +91,18 @@ impl State {
         let config = swapchain.get_config().unwrap();
         let format = swapchain.get_format();
 
-        let mut charges = vec![Charge {
-            position: [size.width as f32 / 2.0, size.height as f32 / 2.0],
-            charge: -5.0,
-            _pad: 0.0,
-        }];
-
-        let num_outer = 8;
-        let radius = 300.0;
-        for i in 0..num_outer {
-            let angle = (i as f32) * (2.0 * std::f32::consts::PI / num_outer as f32);
-            charges.push(Charge {
-                position: [
-                    (size.width as f32 / 2.0) + radius * angle.cos(),
-                    (size.height as f32 / 2.0) + radius * angle.sin(),
-                ],
+        let charges = vec![
+            Charge {
+                position: [size.width as f32 / 2.0 + 200.0, size.height as f32 / 2.0],
+                charge: -1.0,
+                _pad: 0.0,
+            },
+            Charge {
+                position: [size.width as f32 / 2.0 - 200.0, size.height as f32 / 2.0],
                 charge: 1.0,
                 _pad: 0.0,
-            });
-        }
+            },
+        ];
 
         // Create a renderer
         let renderer = Renderer::new(
