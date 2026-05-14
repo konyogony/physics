@@ -91,18 +91,25 @@ impl State {
         let config = swapchain.get_config().unwrap();
         let format = swapchain.get_format();
 
-        let charges = vec![
-            Charge {
+        let mut charges = vec![Charge {
+            position: [size.width as f32 / 2.0, size.height as f32 / 2.0],
+            charge: -5.0,
+            _pad: 0.0,
+        }];
+
+        let num_outer = 8;
+        let radius = 300.0;
+        for i in 0..num_outer {
+            let angle = (i as f32) * (2.0 * std::f32::consts::PI / num_outer as f32);
+            charges.push(Charge {
+                position: [
+                    (size.width as f32 / 2.0) + radius * angle.cos(),
+                    (size.height as f32 / 2.0) + radius * angle.sin(),
+                ],
                 charge: 1.0,
-                position: [size.width as f32 / 2.0 + 200.0, size.height as f32 / 2.0],
                 _pad: 0.0,
-            },
-            Charge {
-                charge: -1.0,
-                position: [size.width as f32 / 2.0 - 200.0, size.height as f32 / 2.0],
-                _pad: 0.0,
-            },
-        ];
+            });
+        }
 
         // Create a renderer
         let renderer = Renderer::new(
@@ -373,7 +380,7 @@ impl State {
                     epsilon_naught: ((8.9_f32).powi(-8)),
                     num_charges: self.renderer.electric_manager.charges.len() as u32,
                     color_value: self.renderer.ui_manager.committed_input_values.color_value,
-                    _pad: [0.0; 3],
+                    _pad1: [0.0; 3],
                     draw_options: DrawOptions::from(
                         &self.renderer.ui_manager.committed_input_values,
                     ),

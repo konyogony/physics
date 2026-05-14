@@ -150,6 +150,8 @@ pub fn grid_fs(
 
     if constants.draw_options.draw_potential == 1 {
         let index = px_x.floor() as i32 + px_y.floor() as i32 * constants.width as i32;
+        let rgba = constants.electric_options.equipotential_color_rgba;
+        let color = Vec4::new(rgba[0], rgba[1], rgba[2], rgba[3]);
 
         // Safety check
         if (index as usize) < electric_field.len() && (index as usize) < potential_field.len() {
@@ -168,7 +170,8 @@ pub fn grid_fs(
                 alpha += antialias(potential_difference / vec_strength, 1.0);
                 target_potential += 250.0;
             }
-            *output = output.lerp(AXIS_COLOR, alpha);
+
+            *output = output.lerp(color, alpha);
         }
     }
 }

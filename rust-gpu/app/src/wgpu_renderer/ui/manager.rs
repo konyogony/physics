@@ -20,8 +20,9 @@ pub const DEFAULT_CONFIG: InputValues = InputValues {
         num_particles_per_charge: 60,
         max_steps: 550,
         step_size: 3.0,
-        stop_distance: 10.0,
+        stop_distance: 14.5,
         charge_strength: 1.0,
+        equipotential_color_rgba: [0.0, 0.545, 0.545, 1.0],
     },
     charge_spawn_ui_options: ChargeSpawnUIOptions {
         x: 0.0,
@@ -75,6 +76,7 @@ pub struct ElectricUIOptions {
     pub step_size: f32,
     pub stop_distance: f32,
     pub charge_strength: f32,
+    pub equipotential_color_rgba: [f32; 4],
 }
 
 pub struct UIManager {

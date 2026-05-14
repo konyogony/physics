@@ -109,6 +109,15 @@ impl UI {
                     &mut manager.input_values.electric_ui_options.stop_distance,
                     "Stop Distance",
                 );
+
+                self.color_picker(
+                    ui,
+                    &mut manager
+                        .input_values
+                        .electric_ui_options
+                        .equipotential_color_rgba,
+                    "Equipotential Lines Color RGBA",
+                );
             });
         });
 
@@ -165,6 +174,13 @@ impl UI {
             if ui.add(Button::new(label)).clicked() {
                 *value = true
             }
+        });
+    }
+
+    pub fn color_picker(&self, ui: &mut Ui, value: &mut [f32; 4], label: &str) {
+        ui.horizontal(|ui| {
+            ui.color_edit_button_rgba_unmultiplied(value);
+            ui.label(label);
         });
     }
 }

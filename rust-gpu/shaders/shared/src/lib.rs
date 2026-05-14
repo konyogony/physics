@@ -40,8 +40,8 @@ pub const H: i32 = 1;
 #[derive(Debug, Clone, Copy, Zeroable, Pod)]
 #[repr(C)]
 pub struct Charge {
-    pub charge: f32,
     pub position: [f32; 2],
+    pub charge: f32,
     pub _pad: f32,
 }
 
@@ -66,7 +66,8 @@ pub struct ElectricOptions {
     pub max_steps: u32,
     pub step_size: f32,
     pub stop_distance: f32,
-    pub _pad: [f32; 2],
+    pub _pad: [f32; 3],
+    pub equipotential_color_rgba: [f32; 4],
 }
 
 // --- From Grid Shader ---
@@ -95,22 +96,15 @@ pub struct ShaderConstants {
     pub height: u32,
     pub aspect_ratio: f32,
     pub time: f32,
-    //  16
     pub dt: f32,
-    // To know if i am within range
     pub num_particles: u32,
     pub epsilon_naught: f32,
     pub num_charges: u32,
-    // 32
     pub color_value: f32,
-    pub _pad: [f32; 3],
-    // 48
+    pub _pad1: [f32; 3],
     pub draw_options: DrawOptions,
-    // 64
     pub particle_options: ParticleOptions,
-    // 80
     pub electric_options: ElectricOptions,
-    // 112
 }
 
 #[derive(Default, Copy, Clone, Pod, Zeroable)]

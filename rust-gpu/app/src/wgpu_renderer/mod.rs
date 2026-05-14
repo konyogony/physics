@@ -63,7 +63,8 @@ impl From<&InputValues> for ElectricOptions {
             max_steps: value.electric_ui_options.max_steps as u32,
             step_size: value.electric_ui_options.step_size,
             stop_distance: value.electric_ui_options.stop_distance,
-            _pad: [0.0; 2],
+            _pad: [0.0; 3],
+            equipotential_color_rgba: value.electric_ui_options.equipotential_color_rgba,
         }
     }
 }
