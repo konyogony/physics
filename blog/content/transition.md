@@ -27,7 +27,7 @@ We can easily manipulate these fragments and vertices to produce complex shapes 
 There are mainly 3 types of shaders:
 
 - **Vertex Shader**: Responsible for drawing or manipulating the individual vertices.
-- **Fragment Shader**: Responsible for coloring in and assigning a color to an individual fragment.
+- **Fragment Shader**: Responsible for colouring in and assigning a color to an individual fragment.
 - **Compute Shader**: Splits up complex computations into workgroups and works on them in parallel.
 
 Shaders work differently from normal processes and calculations done on the CPU.
@@ -98,7 +98,7 @@ Hence, we can construct the vector $\vec{AP}$ as shown in the image.
 </div>
 
 After, we can label the distance from $A$ to $Q$ as $h$.
-By finding the ratio of $h$ we can determine how far we are along the vector $\vec{AB}$ we are, which will give us all the information we need to find $d$, the distance $\vec{PQ}$.
+By finding the ratio of $h$ we can determine how far we are along the vector $\vec{AB}$, which will give us all the information we need to find $d$, the distance $\vec{PQ}$.
 We can actually get $h$ quite easily, by taking the dot product $\vec{AP} \cdot \vec{AB}$, we can get the scalar value that the vector $\vec{AP}$ aligns with $\vec{AB}$.
 After that, a normalisation has to be applied, yielding us:
 
@@ -189,9 +189,9 @@ let pos = Vec2::new(uv.x * 2.0 - 1.0, uv.y * 2.0 - 1.0);
 ```
 
 Now that we have a fragment to draw on, we can draw the lines which will cover the entire screen.
-We have multiple lines to draw, the axis line (bright white lines along the origin), the grid lines (white lines repeating every N pixels) and highlight lines (colored lines repeating every N grid lines).
+We have multiple lines to draw, the axis line (bright white lines along the origin), the grid lines (white lines repeating every N pixels) and highlight lines (coloured lines repeating every N grid lines).
 This can be done using signed distance fields.
-First, to draw the axis lines, if we have centered our coordinates beforehand, we can directly use them to get the closest distance as shown here:
+First, to draw the axis lines, if we have centred our coordinates beforehand, we can directly use them to get the closest distance as shown here:
 
 ```rs
 let axis_distance = px_x.abs().min(px_y.abs());
@@ -223,13 +223,13 @@ Similarly, to draw the arrows at each intersection of the gridlines we have to u
 Firstly, we acquire the index of the closest grid line by dividing current coordinates by `GRID_SPACING_PX` and flooring the output.
 Lets recall, that for a line SDF we need to have the initial position, final position and current pixel position.
 In order to acquire the final position, similarly to the Nannou application, we call the `arrow_function` with correct coordinates.
-Afterwards, we store the original magnitude & normalise the resultant vector to make sure it doesnt interfere with other arrows.
-However, we cannot use a simple line SDF here, we have to use a rectange SDF to get sharp corners. This type of SDF is not too complicatd to make,
-as it is very similar to the line SDF, except for calculating the longitudonal and perpendicular distance seperatly.
+Afterwards, we store the original magnitude & normalise the resultant vector to make sure it doesn't interfere with other arrows.
+However, we cannot use a simple line SDF here, we have to use a rectangle SDF to get sharp corners. This type of SDF is not too complicated to make,
+as it is very similar to the line SDF, except for calculating the longitudinal and perpendicular distance separately.
 The following is the result of what we have achieved.
 
 As you can see the line clearly gets cut off at the edge of the grid. This is because we always round down, therefore even at the edge of a square,
-we will always look at and compare with a different edge. This can be solved by looping around neighboruing squares and calculating the SDF from their perspective as well.
+we will always look at and compare with a different edge. This can be solved by looping around neighbouring squares and calculating the SDF from their perspective as well.
 
 ```rs
 for i in -1..=1 {
@@ -248,9 +248,9 @@ An arrow head can be made from a triangle SDF, which is internally composed of 3
 By combining the 3 line SDFs we can acquire the unsigned distance value.
 Now, we have to check if the point is inside or outside the triangle. Lets look at this analogy here,
 imagine you are moving counter clockwise along the contour of the triangle from A to B and you are looking out the window,
-the point will always appear to be on the left hand side. To check this mathematically, for each straight such as $\vec{AB}$, we take the cross
-product $\vec{AB}\times\vec{AP}$. After we take the cross product for each edge of the triangle we can check if every result came back negative if all were positive.
-Now, we just have to pass in 3 point that the triangle has to be made up of. Since this is an arrow head we will have to point on the perpendicular line
+the point will always appear to be on the left hand side. To check this mathematically, for each edge such as $\vec{AB}$, we take the cross
+product $\vec{AB}\times\vec{AP}$. After we take the cross product for each edge of the triangle we can check if every result came back negative or all were positive.
+Now, we just have to pass in 3 points that the triangle has to be made up of. Since this is an arrow head we will have two points on the perpendicular line
 and 1 point along the same gradient. The perpendicular line can be acquired in many different ways, but I chose the fun and more complicated way of rotating
 a point 90 degrees clockwise.
 
@@ -287,25 +287,25 @@ Now we can just apply a scaling to the directions to change the width and the he
 ## Particles
 
 Now, the particles is where this new system really shines. No CPU computations means that we can generate and simulate loads of particles moving at the same time.
-The GPU updates each particles position using a **Compute Shader**. This type of shader does not render any output, but is able to manipulate textures, buffers and other pieces of data.
+The GPU updates each particle's position using a **Compute Shader**. This type of shader does not render any output, but is able to manipulate textures, buffers and other pieces of data.
 This type of shader is also dispatched in groups, which allows data to be processed in parallel and use multiple threads.
 First, a struct representing each individual particle is created, which will hold the position, the color and the velocity for each particle.
 Afterwards, a buffer has to be created which acts kind of like an array for all the particles. This buffer will have a fixed size and we will be able to dynamically insert and remove particles from it.
 These dynamic updates is what drives this method of computations even higher up the efficiency scale, since this allows us not to recreate the buffers every single
 frame, but instead just pass in the persistent buffers. This way, the GPU never has to pass data back out to the CPU, meaning there is no major bottleneck.
 
-The compute shaders can recieve multiple parameters, in our use case `global_invocation_id` is the main drive of this shader, as gives us the index of the current particle we are working on.
+The compute shaders can receive multiple parameters, in our use case `global_invocation_id` is the main driver of this shader, as it gives us the index of the current particle we are working on.
 After we check that the index is within our range, we can extract this exact particle from the array and use its current position as input for the `arrow_function`.
-However, its important to note that the position for each particle is stored in the screen space, however the arrow function accepts input using centered cooridantes.
-After we change the coordinates and call the `arrow_function`, which gives us the velocity at any point in time and space, we translate the particles position by
-`velocity * constants.dt * TIME_SCALE`. The `constnats.dt` refers to a small period of time calculated between frames and passed in as a shader constant. The final compute shader will look like this:
+However, it's important to note that the position for each particle is stored in screen space, however the arrow function accepts input using centred coordinates.
+After we change the coordinates and call the `arrow_function`, which gives us the velocity at any point in time and space, we translate the particle's position by
+`velocity * constants.dt * TIME_SCALE`. The `constants.dt` refers to a small period of time calculated between frames and passed in as a shader constant. The final compute shader will look like this:
 
 ```rs
 #[spirv(compute(threads(256), entry_point_name = "particle_cs"))]
 pub fn particle_cs(
     // The absolute index of the current data piece
     #[spirv(global_invocation_id)] global_invocation_id: UVec3,
-    // First bind group carries constnats
+    // First bind group carries constants
     #[spirv(descriptor_set = 0, binding = 0, storage_buffer)] constants: &ShaderConstants,
     // Second bind group carries the input and output buffers which will hold particles.
     #[spirv(descriptor_set = 1, binding = 0, storage_buffer)] input: &[Particle],
@@ -327,15 +327,15 @@ pub fn particle_cs(
         // Minus sign since inverted coordinate system
         particle.position[1] -= velocity.y * constants.dt * TIME_SCALE;
 
-        // Not to lose data, we create mutatable varialbe in the beginning,
-        // and we assign whole particle to the output.
+        // Not to lose data, we create a mutable variable in the beginning,
+        // and we assign the whole particle to the output.
         output[particle_index] = particle;
     }
 }
 ```
 
 Now, this process can be optimised even further, we can use the ping-pong model to switch between two buffers that we will read and write from.
-The ping-pong buffer model also eliminates race conditions often seen when GPU is trying to access old data. This section will not go into the implementation of this sytem,
+The ping-pong buffer model also eliminates race conditions often seen when GPU is trying to access old data. This section will not go into the implementation of this system,
 as it will extend this already long blog, while virtually having the same output. The data from the compute shaders is then passed into the vertex shader, since we still have to display each particle.
 The vertex shader reads the position of each particle and creates a polygon shape. This shape is created from `POLYGON_VERTICES`, which can create `POLYGON_VERTICES / 3` fragments.
 Each fragment will start at the origin, extend outwards by `PARTICLE_RADIUS` and then use either sine or cosine to make the correct shape. The angle for the sine and cosine functions
@@ -346,12 +346,12 @@ is acquired by `(2.0 * PI) / num_fragments`. Afterwards the fragment shader assi
 </div>
 
 However, the buffer is created empty, therefore we need to find a way how to input the particles into the buffer.
-We will use the mouse position as the current particles position. To achieve that we will use the `WindowEvent::CursorMoved` event to recieve the current mouse position,
+We will use the mouse position as the current particle's position. To achieve that we will use the `WindowEvent::CursorMoved` event to receive the current mouse position,
 and pass in the `Mouse` struct which persists the position and mouse states. Then, when the button mouse state changes we modify the particle buffer and update the number of particles.
 
 # Conclusion
 
-By tranisition from Nannou and CPU bound computations, we are now able to create pipelines and use shaders to accelerate our program.
+By transitioning from Nannou and CPU bound computations, we are now able to create pipelines and use shaders to accelerate our program.
 Shaders are able to work on many groups of pixels in parallel, which provokes efficiency in the program.
 There are multiple types of shaders, each responsible for different tasks, such as the fragment, vertex and compute shader.
 Signed Distance Fields can be used to draw objects, lines and geometry onto the screen by applying vector algebra.

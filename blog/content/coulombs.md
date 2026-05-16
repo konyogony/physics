@@ -5,13 +5,13 @@ title: Coulombs Law
 
 # Introduction
 
-Now that we have succesfully converted to using `rust-gpu` and shaders for our simulations, lets look at new examples and ideas that we could not do before.
+Now that we have successfully converted to using `rust-gpu` and shaders for our simulations, lets look at new examples and ideas that we could not do before.
 In this section we will look at the simulation and application of Coulomb's Law on electrostatic charges.
 
 # Electrostatics and the Coulombs Law
 
-In contrast to normal electromagnetism, the study of electrostatics involves charges, electric and magnetic fieds that dont alternate over time,
-hence the suffix statics. This means that the 4 Maxwell's equations simplfy to:
+In contrast to normal electromagnetism, the study of electrostatics involves charges, electric and magnetic fields that don't alternate over time,
+hence the suffix statics. This means that the 4 Maxwell's equations simplify to:
 
 $$
 \begin{aligned}
@@ -23,7 +23,7 @@ $$
 $$
 
 What this means in practice is that it is much easier to compute and deal with charges that are not moving.
-Let us focus on the Coulombs Law now. The Coulomb law talks about the force on exerted on two charges, and is equal to the following expression.
+Let us focus on the Coulombs Law now. The Coulomb law talks about the force exerted on two charges, and is equal to the following expression.
 
 $$
 \vec{F_1} = \frac{1}{4\pi \epsilon_0} \, \frac{q_1 \, q_2}{r^2_{12}} \, \hat{e_{12}} = -\vec{F_2}
@@ -41,7 +41,7 @@ $$
 \vec{E} = \frac{1}{4\pi \epsilon_0} \, \sum_j \frac{q_j}{r^2_{1j}} \, \hat{e_{1j}}
 $$
 
-However, we can define the electric field in terms of a scalar value, the electric potential. This is usually prefered since you will only have to compute a single
+However, we can define the electric field in terms of a scalar value, the electric potential. This is usually preferred since you will only have to compute a single
 scalar value instead of multiple separate directions. The electric potential is defined as
 
 $$
@@ -57,22 +57,22 @@ $$
 # Project
 
 There is another way of calculating $\phi$ which involves electric density at every point, however this will force us to loop through every single pixel for every pixel we check,
-which raises the complexity of the algorithm up to $O(N^2)$. Therefore, first of all we create a new buffer which hold all the charges currently present in the system. This buffer can
+which raises the complexity of the algorithm up to $O(N^2)$. Therefore, first of all we create a new buffer which holds all the charges currently present in the system. This buffer can
 then be modified to dynamically add or remove charges. Afterwards, a compute shader is called which uses this buffer of charges to initialise data inside the potential buffer.
 However, we need to represent the whole two dimensional grid, why and how are we not using a texture instead?
 
-Well, textures are generaly really useful and are highly efficient because most modern GPUs have built in cache modules for handling textures, as well textures being able to provide direct UV coordinates to work with,
-they are usually prefered. For this use case although, we have a chain of multiple compute shaders, hence it will be a pain using `rust-gpu`s `Image!()` macros and handle the read-write permissions across 3 different layouts.
+Well, textures are generally really useful and are highly efficient because most modern GPUs have built in cache modules for handling textures, as well as textures being able to provide direct UV coordinates to work with,
+they are usually preferred. For this use case however, we have a chain of multiple compute shaders, hence it will be a pain using `rust-gpu`s `Image!()` macros and handling the read-write permissions across 3 different layouts.
 Therefore, we will resort back to buffers. To represent a two dimensional plane in a single buffer, we will convert the current pixel coordinates into the index by basically getting the pixel number if we were to start
-counting from top left and wrapped around everytime we reached the end. The formula for the index could also be represented with this equation:
+counting from top left and wrapped around every time we reached the end. The formula for the index could also be represented with this equation:
 
 $$
 i = x_{px} + y_{px} \cdot w_{px}
 $$
 
-where $w_px$ is the width of the screen and $x_px, y_px$ are the current pixel positions from the top left corner in pixels.
+where $w_{px}$ is the width of the screen and $x_{px}, y_{px}$ are the current pixel positions from the top left corner in pixels.
 After we have calculated the electrical potential for every pixel and stored it inside the buffer, we can then use that buffer in a second compute shader which will actually convert the potential to a field.
-The result is then used in particle and grid shader to correctly orrient the arrows and make 'test charges' (our particles) move through the electric field.
+The result is then used in particle and grid shaders to correctly orient the arrows and make 'test charges' (our particles) move through the electric field.
 
 ## Electric Potential
 
@@ -91,13 +91,13 @@ pub struct ElectricManager {
 ```
 
 The charges vector (or a dynamic array as you may call it) will hold the position and charge of our charged particles. The buffers will hold the 3 buffers responsible for charges, potential field and the electric field.
-Using buffers allows us to index into the correct slot and change data dynamically, such adding or removing charges from our system. Bind groups are just layouts that represent what data we will be passing into the shaders,
-they remain static. The `size` referers to the `PhysicalSize` that our screen takes up, meaning the width and height in pixels, this is important to create `buffer_size`, which taken from the name limits the size of each buffer,
-making sure we use only whats needed. Finally, `next_charge`, although the naming convention _is_ weird here, just indicates the charge on the next particle to be created. Later, this will used to alternate between positive and negative charges.
+Using buffers allows us to index into the correct slot and change data dynamically, such as adding or removing charges from our system. Bind groups are just layouts that represent what data we will be passing into the shaders,
+they remain static. The `size` refers to the `PhysicalSize` that our screen takes up, meaning the width and height in pixels, this is important to create `buffer_size`, which taken from the name limits the size of each buffer,
+making sure we use only what's needed. Finally, `next_charge`, although the naming convention _is_ weird here, just indicates the charge on the next particle to be created. Later, this will be used to alternate between positive and negative charges.
 
-Now, how do we use this data to actually create our electric potential. Firstly, a buffer is created, and the vector of initial charges is initialised into it. This buffer gets passed onto our first comptue shader,
-`electric_potential_cs`. This compute shader will be ran for every pixel on our screen and will directly use the formula discussed earlier to calculate the potential at any point. Therefore, a for loop through each particle is created,
-which calculates the distance from each pixel to that charge, then sums it all up together and multiplies by a constant defined in the real life as $\frac{1}{4\pi\epsilon_0}$. However, it is important to note that the value
+Now, how do we use this data to actually create our electric potential. Firstly, a buffer is created, and the vector of initial charges is initialised into it. This buffer gets passed onto our first compute shader,
+`electric_potential_cs`. This compute shader will be run for every pixel on our screen and will directly use the formula discussed earlier to calculate the potential at any point. Therefore, a for loop through each particle is created,
+which calculates the distance from each pixel to that charge, then sums it all up together and multiplies by a constant defined in real life as $\frac{1}{4\pi\epsilon_0}$. However, it is important to note that the value
 for $\epsilon_0$ is chosen not based on realism, but to fit the simulation look.
 
 ```rs
@@ -152,10 +152,10 @@ pub fn electric_potential_cs(
 
 ## Electric Field
 
-Now that we have acquired the electric potential buffer, we can use it directly in our second compute shader to generate the electric field iteself, as specified by $\vec{E} = -\vec{\nabla}\phi$.
-But wait a minute, how do we even do partial derivatives inside of computer science? Well, since we cannot acquire the analytical solution before hand, we have to rely on sampling, more specifically the central difference method.
+Now that we have acquired the electric potential buffer, we can use it directly in our second compute shader to generate the electric field itself, as specified by $\vec{E} = -\vec{\nabla}\phi$.
+But wait a minute, how do we even do partial derivatives inside of computer science? Well, since we cannot acquire the analytical solution beforehand, we have to rely on sampling, more specifically the central difference method.
 
-The central difference method can approximate the derivate of any funciton by taking multiple samples around a point, or in our case a pixel. The equation for this approximation will look as follows, where $h$ is a tiny step, e.g. 1 pixel.
+The central difference method can approximate the derivative of any function by taking multiple samples around a point, or in our case a pixel. The equation for this approximation will look as follows, where $h$ is a tiny step, e.g. 1 pixel.
 
 $$
 f'(x) \approx \frac{f(x+h) - f(x-h)}{2h}
@@ -196,7 +196,7 @@ pub fn electric_field_cs(
 ```
 
 When we multiply `H * constants.width`, we are basically forcing to wrap `H` times around, which progresses us downwards.
-Now that we are succesfully calculating $-\vec{\nabla}\phi$ and storing it inside of `electric_field` buffer, we can actually apply it onto our grid.
+Now that we are successfully calculating $-\vec{\nabla}\phi$ and storing it inside of `electric_field` buffer, we can actually apply it onto our grid.
 Hence, we will have to pass in this electric bind group into the fragment shader for our grid. It is important to note the order of operations, since we will be working with multiple
 compute and render passes:
 
@@ -205,9 +205,9 @@ compute and render passes:
 3. Main render pass will pass in all data into vertex and fragment shaders for the grid.
 
 To apply the `electric_field` inside of the fragment shader, we use the index calculation mentioned earlier and the `frag_coords` passed in. Then, from the extracted position we
-can create the vector and make the arrows point in the correct direction. However, currently the arrows will be bending around invisible objects, thefore we can copy how particles are rendered and apply
-same vertex shader code onto the charges themselves but slightly editting the properties like the radius. Since for each charge we also store its relative charge (-1 / +1), we can shade each one of them differently,
-where I have went for an orangy-yellow as my positive and a cool blue for negatives. Here is the final output when you combine all the techniques together.
+can create the vector and make the arrows point in the correct direction. However, currently the arrows will be bending around invisible objects, therefore we can copy how particles are rendered and apply
+the same vertex shader code onto the charges themselves but slightly editing the properties like the radius. Since for each charge we also store its relative charge (-1 / +1), we can shade each one of them differently,
+where I have gone for an orangey-yellow as my positive and a cool blue for negatives. Here is the final output when you combine all the techniques together.
 
 <div class="img-container">
   <img src="./assets/electric-field-1.webp" alt="Electric Field around a positive charge" />
@@ -215,14 +215,14 @@ where I have went for an orangy-yellow as my positive and a cool blue for negati
 
 Now this is very exciting that we can see the electric field in action, but it is not quite dynamic enough, therefore we need to introduce user input. From an already existing `Mouse` struct we can extract
 when user uses right click and insert a new charge into `Vec<Charge>`, which is stored in the `ElectricManager`. In addition to that, we alter the charges buffer and the new charge appears in our simulation.
-In contrast to normal particles, here we could entirelly replace and recreate the buffer with all the charges, since none of their information dynamically updates inside of GPU, nothing would be lost.
-However, it is still quite more efficient to index into the right spot and edit a specific memory location. Now that we have introduces spawning in new charges, we will have to look at a way of switching their charge.
+In contrast to normal particles, here we could entirely replace and recreate the buffer with all the charges, since none of their information dynamically updates inside of GPU, nothing would be lost.
+However, it is still quite more efficient to index into the right spot and edit a specific memory location. Now that we have introduced spawning in new charges, we will have to look at a way of switching their charge.
 I have decided this should be done by a keyboard input, for example when user presses `X` on their keyboard.
 
 ## Keyboard Inputs
 
 This means we have to properly look at how we want to handle keyboard inputs. Well, first of all an input from a device is a window event coming from `winit` itself, and we handle all of them inside of the `State` struct.
-When check that this window event is a keyboard input, we can pass in the key and its state into a new struct, `Keyboard`. This struct will update a HashMap that is stored inside of it assignign the key to a specific state.
+We check that this window event is a keyboard input, we can pass in the key and its state into a new struct, `Keyboard`. This struct will update a HashMap that is stored inside of it assigning the key to a specific state.
 This way we can track inside and outside of the struct when a specific key is pressed down.
 
 ```rs
@@ -256,7 +256,7 @@ pub struct InputActions {
 }
 ```
 
-This struct is then passed onto the `handle_input_actions` shown earier, which acts upon these states to perform the actions shown. Now that keyboard inputs are handled properly we can create a variety of different
+This struct is then passed onto the `handle_input_actions` shown earlier, which acts upon these states to perform the actions shown. Now that keyboard inputs are handled properly we can create a variety of different
 electric fields.
 
 <div class="img-container">
@@ -265,13 +265,13 @@ electric fields.
 
 ## GUI Interface
 
-In addition to creating an electric field visualiser, I wanted to focus on showing equipotential lines as well as field lines. However, this would seriously interfere with our infrastrcture, since code will have to be removed and replaced.
-Hence, not to create many copies, all of my sub-projects will work in the same program and always be active, but not always displayed. This means we need to somehow activly toggle on or off certain parts of shaders.
-A graphical user interface (GUI) would be quite helpful, and luckily enough I already had prior experience working with once, specifically for `wgpu`. The [`egui`](https://github.com/emilk/egui) library is a fantastic and
-as advertised an easy to use GUI interface creator. This library greatly simplifies alot of mess to deal with. From my previous attempts, I have learnt that its best to create a new `UIManager` struct which will hold
-appropriate method for intialisation, resize and draw calls.
+In addition to creating an electric field visualiser, I wanted to focus on showing equipotential lines as well as field lines. However, this would seriously interfere with our infrastructure, since code will have to be removed and replaced.
+Hence, not to create many copies, all of my sub-projects will work in the same program and always be active, but not always displayed. This means we need to somehow actively toggle on or off certain parts of shaders.
+A graphical user interface (GUI) would be quite helpful, and luckily enough I already had prior experience working with one, specifically for `wgpu`. The [`egui`](https://github.com/emilk/egui) library is a fantastic and
+as advertised an easy to use GUI interface creator. This library greatly simplifies a lot of mess to deal with. From my previous attempts, I have learnt that it's best to create a new `UIManager` struct which will hold
+appropriate methods for initialisation, resize and draw calls.
 
-Although the init process is not as simple as it may seem, I will do my best to explain briefly the flow of data within this struct. On program intialisation, we create a new `UIManager` that will be persistant and
+Although the init process is not as simple as it may seem, I will do my best to explain briefly the flow of data within this struct. On program initialisation, we create a new `UIManager` that will be persistent and
 store its state, renderer and other attributes. On each redraw call, before the render pass even starts we have to prepare the UI. This step includes acquiring the raw input and drawing a predefined UI layout onto an output.
 This output is then processed inside of the renderer using textures and in the end `ClippedPrimitive`s are produced. We store them inside the struct and update needed buffers. After this preparation stage, the render pass continues as normal,
 where at the end we call the `draw` on the manager. This method will use the previously stored clipped primitives to render the UI elements onto the screen.
@@ -297,22 +297,22 @@ egui::Window::new("Configuration")
     });
 ```
 
-Here in this example we create three checkboxes for our render outputs. On user input `egui` will capture it and update the `&mut self.input_values.draw_grid` variables. This `input_values` field is a persistant field which is used specifically for the UI.
+Here in this example we create three checkboxes for our render outputs. On user input `egui` will capture it and update the `&mut self.input_values.draw_grid` variables. This `input_values` field is a persistent field which is used specifically for the UI.
 This field is then read from inside of `State` and passed on in the shader struct to render appropriate elements. Here is how it looks populated with more inputs.
 
 <div class="img-container">
-  <img src="./assets/ui.webp" alt="User Interface example with more field" />
+  <img src="./assets/ui.webp" alt="User Interface example with more fields" />
 </div>
 
 ## Equipotential & field lines
 
 In the Feynman lecture covered, the idea of equipotential and field lines were covered. An equipotential line was defined as a line segment,
-along which the electric potential, $\phi$ is constant. Field lines, however, are more complex. They are always perpendicular to the electric potential,
+along which the electric potential, $\phi$ is constant. Field lines, however, are more complex. They are always perpendicular to the equipotential lines,
 and flow from positive to negative charges. They are usually evenly spaced out, so their density remains constant throughout the simulation.
 These field lines are useful since they trace out the path, the trajectory, of a particle if it were to be released in the system.
 
 We can achieve the same effect using shaders. Inside the grid fragment shader we can use the coordinates of our pixel as an index and extract
-the relevant item from our electric potential buffer. We can then calculate the diffrenece between our current potential and the target potential, this will be used
+the relevant item from our electric potential buffer. We can then calculate the difference between our current potential and the target potential, this will be used
 as our difference in the `antialias` function. To get multiple lines showing up instead of a single target, we can do a simple for loop and step through the
 targeted potentials, and merge the output from all of them.
 
@@ -323,7 +323,7 @@ targeted potentials, and merge the output from all of them.
 However, creating the field lines is more complicated than it sounds. For this simulation we will trace the position of particles as they move through the field,
 and then use those points to draw an outline. This means that density will not remain constant throughout the field, however this method is much simpler
 and will simplify the process. Therefore, for each positive charge on the screen (not negative since they consume particles), we will create $N$ number of
-particles spaced out equally around the charge. Then, we can loop $T$ time steps forward and progress each particle according the field and its current position.
+particles spaced out equally around the charge. Then, we can loop $T$ time steps forward and progress each particle according to the field and its current position.
 On each step we will sample its current location and store it inside another buffer. The indexing for this new buffer will work as following:
 
 $$
@@ -362,7 +362,7 @@ $$
         // Extract x, y and check if out of bounds
 
         let mut near_charge = false;
-        // ...Loop throuhg all charges and check if we are close to any of them
+        // ...Loop through all charges and check if we are close to any of them
         // Hidden from here since trivial
 
         // Basically if conditions are met, we just set remaining positions to same position
@@ -396,13 +396,33 @@ $$
 After the compute shader finishes tracing the path of every particle for every positive charge, a vertex shader uses the `PrimitiveTopology::LineStrip` rendering technique to generate lines between each pair of points.
 This eliminates the need to manually loop through each of the points and draw correct vertices, however comes at a cost of not being able to adjust the thickness of lines.
 
-<div class="img-container">
-  <img src="./assets/field-1.webp" alt="Field Lines" />
+Now, let us get straight to the results, here are some variations of the field lines we can create. The field lines are dynamically re-created when any new charges are added and are accurate in the real world (if we are not taking into account that this is a 2D slice of the 3D world).
+Inside our GUI interface I was able to add settings to adjust the number of lines coming out of each charge, as well as colors of potential lines.
+
+<div class="img-grid">
+  <div class="img-container">
+    <img src="./assets/field-1.webp" alt="Field Lines 1" />
+  </div>
+  <div class="img-container">
+    <img src="./assets/field-2.webp" alt="Field Lines 2" />
+  </div>
+  <div class="img-container">
+    <img src="./assets/field-3.webp" alt="Field Lines 3" />
+  </div>
+  <div class="img-container">
+    <img src="./assets/field-4.webp" alt="Field Lines 4" />
+  </div>
 </div>
 
+# Conclusion
+
+Finally, lets talk about the conclusions. In this section, we were able to generate an electric field from first principles of electric potentials. Then, we were able to show its field lines, as well as equipotential lines.
+This shows that computer science and simulations can directly correlate to real physics. It is noteworthy to mention that assumptions were made throughout this project, such as the test charges being so small their disturbances are not significant.
+Or the fact that $\epsilon_0$ is made and there are smoothening factors that stop the program from exploding. However, this acts as a proof of concept that more ambitious and interesting topics can be made with a correct layout and mindset.
+This itteration of my program has really brought up important challanges and questions about the architecture. It had forced me to make a system that can be expanded by adding more pipelines, by adjusting the UI or by adding more keybinds.
+A whole ecosystem was born in this section, and although not many technical details were discussed here, the [GitHub repository](https://github.com/konyogony/physics) holds all the information.
+I am looking towards continuing my journey and learning more new things everyday, and hopefully this time it will take me less than 2 weeks to get a project finished.
+
 <div class="img-container">
-  <img src="./assets/field-2.webp" alt="Field Lines" />
-</div>
-<div class="img-container">
-  <img src="./assets/field-3.webp" alt="Field Lines" />
+  <img src="./assets/coulomb-final.webp" alt="Potential + Field + Arrow Vector" />
 </div>

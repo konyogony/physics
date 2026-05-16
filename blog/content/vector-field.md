@@ -74,7 +74,7 @@ A_x & A_y & A_z
 \end{aligned}
 $$
 
-Since nabla is a vector operator, we can do all sorts of actions, with it. Common theorems and use cases are as shown here,
+Since nabla is a vector operator, we can do all sorts of actions with it. Common theorems and use cases are as shown here,
 
 $$
 \begin{aligned}
@@ -86,7 +86,7 @@ $$
 
 First equation stems from linear algebra, by using the definition of $\vec{A} \cdot (\vec{A} \times \vec{B}) = 0$,
 since the cross product will give us a vector perpendicular to $\vec{A}$, therefore not sharing any component with $\vec{A}$.
-Second equations comes from the fundamental definition of a cross product, where the two vectors cannot be parallel, therefore $\vec{A} \times \vec{A} = 0$.
+Second equation comes from the fundamental definition of a cross product, where the two vectors cannot be parallel, therefore $\vec{A} \times \vec{A} = 0$.
 Lastly, we can take the dot product of two vectors, which will give us a higher order derivative, but it is important to note that this is a scalar value.
 
 By leveraging the first two equations, the following theorems can be made.
@@ -162,13 +162,13 @@ where $\hat{n}$ is the normal of each little surface that was made.
 
 ## Outline
 
-Since this is only the beginning, I wanted to lay foundation, to make something simple that can be expanded on later.
+Since this is only the beginning, I wanted to lay a foundation, to make something simple that can be expanded on later.
 Therefore, I have chosen to make a simple vector field visualiser, where we have a grid, with arrows at each vertex, that points in the direction of the vector field and changes colours based on its magnitude.
 
 My previous project involving physics and computer science was building a real-time ocean simulation in Rust by following the Tessendorf's model,
 therefore I wanted to ground myself this time, and went with a simpler library, nannou. Although nannou is still based on wgpu, as the ocean, it provides a simple API to manipulate the scene on the CPU.
 
-I have learnt my mistakes from previous projects and wanted to make sure each component of my project is modularized, where a single struct is responsible for a single thing.
+I have learnt my lessons from previous projects and wanted to make sure each component of my project is modularised, where a single struct is responsible for a single thing.
 Nannou works by having 3 main functions, `model`, `view` and `update`.
 `Model` is responsible for initialising the window, initialising all the variables and assigning the view function for rendering. The `view` function is, as the name suggests, a function responsible for drawing objects
 onto a frame. Meanwhile, the `update` function is called every draw call, which mutates the `Model` struct and progresses the simulation. One of the benefits of nannou that I found really convenient is how much
@@ -178,7 +178,7 @@ the application exposes, such as the simulation time, keyboard and mouse inputs,
 
 Lets begin by making a `Grid` struct, which will hold all the values linked to the grid, like the spacing and colors, along with methods for rendering and updating certain parameters. Inside the `model` function, `Grid::new()`
 is called and stored inside the `Model` struct, which allows us to dynamically change the parameters of it, without recreating the object every time. Then, inside the `view` function, we call `model.grid.draw_grid(app, model, &draw)`.
-This method uses the nannou provided lines first draw the main axis lines, as shown here, where `min_x` \& `max_x` represent the minimum and maximum x values extracted from the window metadata.
+This method uses the nannou provided lines to first draw the main axis lines, as shown here, where `min_x` \& `max_x` represent the minimum and maximum x values extracted from the window metadata.
 
 ```rs
 // x-axis
@@ -189,7 +189,7 @@ draw.line()
     .weight(1.5);
 ```
 
-After the main axis are created, the main grid pattern can be generated, this is done by a simple for loop where a certain step is taken each time starting from the origin and stretching until the limit is reached.
+After the main axes are created, the main grid pattern can be generated, this is done by a simple for loop where a certain step is taken each time starting from the origin and stretching until the limit is reached.
 In addition to normal grid lines, I wanted to implement highlighted grid lines, being inspired by 3Blue1Brown, which appear every `self.highlight_distance` amount of squares.
 
 ```rs
@@ -221,7 +221,7 @@ for i in (self.line_distance..(max_x as usize)).step_by(self.line_distance) {
 }
 ```
 
-If these two operations are mirrored for y and x axis respectively, then a consistent grid is generated, as shown here.
+If these two operations are mirrored for y and x axes respectively, then a consistent grid is generated, as shown here.
 
 <div class="img-container">
   <img src="./assets/base-grid.webp" alt="Base Grid" />
@@ -229,9 +229,9 @@ If these two operations are mirrored for y and x axis respectively, then a consi
 
 ## Vector Arrows
 
-Now that the grid is generated, I wanted to draw vector at each intersection of the grid lines. For that, I will use the provided `draw.arrow()` function, which handles all complex rendering for me.
+Now that the grid is generated, I wanted to draw vectors at each intersection of the grid lines. For that, I will use the provided `draw.arrow()` function, which handles all complex rendering for me.
 But, how does the vector know where the arrow should point? Ah! Well, I will have a `draw_vectors` function, responsible for iterating across each vertex, and theoretically I could hardcode a function that will
-map coordinates $(x, y)$ onto a different position in space. This will indeed yield in a vector field, where at each point in space, an arrow is generated pointing the right direction. However, this can quickly
+map coordinates $(x, y)$ onto a different position in space. This will indeed yield a vector field, where at each point in space, an arrow is generated pointing the right direction. However, this can quickly
 get cluttered easily, therefore I am switching to generics. Generics in Rust allow me to pass in a function `F: Fn(f32, f32) -> Point2`, which accepts the coordinates and outputs a vector (Point2 is closely related to Vec2, or in other words a 2 dimensional vector).
 This allows me to move the `arrow_function`, which will determine how the field behaves, anywhere in the program, and just pass it in when needed.
 
@@ -264,7 +264,7 @@ for x in (start_x..max_x as i32).step_by(self.line_distance) {
 ```
 
 In the future, this can be adapted to accept plain text inputs from
-the user. This already will generate the following result.
+the user. This will already generate the following result.
 
 <div class="img-container">
   <img src="./assets/vectors-nocolor-noscaling.webp" alt="Vector Field No Color No Scaling" />
@@ -276,7 +276,7 @@ $$
 \hat{v} = \frac{\vec{v}}{|\vec{v}|}
 $$
 
-This will shorten each vector to the same length, reducing the cluster.
+This will shorten each vector to the same length, reducing the clutter.
 However, now we have data that is being lost, the strength of the field is no longer being displayed.
 Therefore, we will use color to represent the magnitude of each vector.
 We can get the "strength" value by applying this formula,
@@ -311,7 +311,7 @@ this gives us the following arrows on the grid where each one has a magnitude of
 To visualise these vector fields even further, we can simulate particles moving around this field. As complex as this may sound it is
 actually quite simple. A new `Particle` struct is created which holds the data for the radius and other properties, along with its current position.
 In the previously mentioned `Model` struct, we create a new `Vec` which will hold these particles, as they are added into the scene.
-This allows to dynamically add and remove the particles. Now, in the `update` function, where we will have a check
+This allows us to dynamically add and remove the particles. Now, in the `update` function, we will have a check
 if the left mouse button is pressed. If it is, then extract current location and insert a new particle into the `vec`, as shown here.
 
 ```rs
@@ -320,7 +320,7 @@ if app.mouse.buttons.left().is_down() {
     let mouse_pos = pt2(app.mouse.x, app.mouse.y);
     let particle = Particle::new(
         DEFAULT_RADIUS,
-        // Redish color
+        // Reddish color
         nannou::color::srgba(1.0, 0.3, 0.1, 0.6),
         mouse_pos,
     );
@@ -398,7 +398,7 @@ The mathematics of vector fields are really interesting, and the derivations of 
 I am looking forward to making more different visualisers and simulations that can prove various theories, like the Gauss theorem.
 However, so far all the computations have been done on the CPU, which as seen in the videos, when many particles are created (for example, in a grid)
 the FPS drop is huge and the simulation becomes unusable.
-This is because we are not utilising the power of shaders parallelism on the GPU threads.
+This is because we are not utilising the power of shader parallelism on the GPU threads.
 This immensely limits the amount of computations that can be done, and although nannou _does_ expose the plain wgpu API, allowing for shaders and such,
 I have decided that my next goal will be to apply the power of rust onto shaders using [`rust-gpu`](https://rust-gpu.github.io/),
 and by building up the application from scratch.
