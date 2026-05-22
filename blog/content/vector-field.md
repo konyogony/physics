@@ -368,25 +368,25 @@ making more interesting and complex visualisations. Here is a set of videos, sho
 <div class="vid-grid">
   <div class="vid-card">
     <div class="vid-shroud">
-      <video autoplay muted loop playsinline src="https://static.konyogony.dev/vel-field-1.mp4"></video>
+      <video autoplay muted loop playsinline src="https://cdn.konyogony.dev/u/vel-field-1.mp4"></video>
     </div>
     <label>Velocity Field 1</label>
   </div>
   <div class="vid-card">
     <div class="vid-shroud">
-      <video autoplay muted loop playsinline src="https://static.konyogony.dev/vel-field-2.mp4"></video>
+      <video autoplay muted loop playsinline src="https://cdn.konyogony.dev/u/vel-field-2.mp4"></video>
     </div>
     <label>Velocity Field 2</label>
   </div>
   <div class="vid-card">
     <div class="vid-shroud">
-      <video autoplay muted loop playsinline src="https://static.konyogony.dev/vel-field-3.mp4"></video>
+      <video autoplay muted loop playsinline src="https://cdn.konyogony.dev/u/vel-field-3.mp4"></video>
     </div>
     <label>Velocity Field 3</label>
   </div>
   <div class="vid-card">
     <div class="vid-shroud">
-      <video autoplay muted loop playsinline src="https://static.konyogony.dev/acc-field-1.mp4"></video>
+      <video autoplay muted loop playsinline src="https://cdn.konyogony.dev/u/acc-field-1.mp4"></video>
     </div>
     <label>Acceleration Field 1</label>
   </div>
