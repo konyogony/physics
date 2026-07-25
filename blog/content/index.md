@@ -2,20 +2,11 @@
 title: Welcome to my Physics Blog
 ---
 
-# Introduction
+Hello wanderer! You have discovered my cave of self-reflection and desire to create coolest things possible.
+Initially this website was planned to be a simple way to make notes and showcase some of my projects, but quickly has grown to cover more interesting topics in various fields of physics and mathematics.
 
-This blog will focus on the [Feynman Lectures](https://www.feynmanlectures.caltech.edu/II_toc.html) from Caltech. Every chapter, I thoroughly read the contents, make sure I understand it and am able to recall it continuously throughout my week by using the blurt method.
-Then, once I feel like I have enough knowledge about a topic, I make a coding project, for example a vector field, or proving an equation true, or some other sort of visualiser. I have mainly focused on Volume II, where
-the main contents covered are electromagnetism and matter, however I plan on expanding on this in the future.
+# Context
 
-# Inspiration
-
-Who am I and why doing this in the first place? Well, I am an excellent student in high school, in addition to being a [developer](https://konyogony.dev) I truly enjoy learning and understanding how the world around me works.
-Therefore, I found really cool online lectures, which combined with my advanced math skills (for my age), I can explore this fascinating field of physics and computer science.
-In addition to this urge to learn, I thought this would be a great opportunity to showcase my passion and will to create and learn on my own, way beyond what school or anyone can really prepare me for.
-
-# Projects
-
-As previously mentioned, as I go through the lectures, I will pick out key concepts and ideas I would like to re-create or prove. All the coding is done in [Rust](https://rust-lang.org/), where I started off using [nannou](https://nannou.cc/), but transferred to
-using [rust-gpu](https://rust-gpu.github.io/), which allowed me to write efficient GPU shader code using Rust. Why Rust? Well, it is the language I am most proficient in, and in addition it is memory safe and has really great architectural concepts.
-All my code will be open-sourced on [GitHub](https://github.com/konyogony/physics)
+So far, I have made great focus on some electromagnetism topics from caltech lectures, and at the time of writting, I am looking into the Laplace transform!
+If you wish to know more about me, well get ready! I am a student in high school, a self-proclaimed developer (I do have multiple projects in my bag), who is looking towards experimenting, exploring and creating.
+I enjoy physics, computer science and gaming! You can checkout my [portfolio](https://konyogony.dev), my [GitHub](https://github.com/konyogony) page, or keep strolling through these blog pages.

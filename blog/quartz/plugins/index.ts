@@ -54,3 +54,5 @@ declare module "vfile" {
         relativePath: FilePath
     }
 }
+
+export { TikzJax } from "./transformers/tikz"
