@@ -54,7 +54,6 @@ impl ElectricPipeline {
                 compilation_options: Default::default(),
                 cache: None,
             });
-
         let compute_field_pipeline = device.create_compute_pipeline(&ComputePipelineDescriptor {
             label: Some("ElectricFieldComputePipeline"),
             layout: Some(&layout_compute),

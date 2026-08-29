@@ -50,7 +50,7 @@ impl ElectricManager {
             size,
             charges,
             buffer_size,
-            next_charge: charge_strength,
+            next_charge: 1.0,
             max_steps,
             num_particles_per_charge,
             charge_strength,
@@ -66,7 +66,6 @@ impl ElectricManager {
         global_bind_group_layout: &GlobalBindGroupLayout,
         max_steps: usize,
         num_particles_per_charge: u32,
-        charge_strength: f32,
     ) {
         if new_size.width == 0 || new_size.height == 0 {
             return;
@@ -76,16 +75,10 @@ impl ElectricManager {
         let width_transform: f32 = new_size.width as f32 / old_size.width as f32;
         let height_transform: f32 = new_size.height as f32 / old_size.height as f32;
 
+        // First modify AND store the new positions
         for charge in self.charges.iter_mut() {
             charge.position[0] *= width_transform;
             charge.position[1] *= height_transform;
-
-            // Basically replace all charges with a new value + check if negative
-            if charge.charge < 0.0 {
-                charge.charge = -charge_strength
-            } else {
-                charge.charge = charge_strength
-            }
         }
 
         self.electric_storage_buffers = global_bind_group_layout.create_electric_buffers(
@@ -123,13 +116,12 @@ impl ElectricManager {
         self.charges.push(charge);
     }
 
+    pub fn set_next_charge(&mut self, next_value: f32) {
+        self.next_charge = next_value
+    }
+
     pub fn toggle_charge(&mut self) {
-        let current_charge = self.next_charge;
-        if current_charge > 0.0 {
-            self.next_charge = -self.charge_strength;
-        } else {
-            self.next_charge = self.charge_strength
-        }
+        self.next_charge = -self.next_charge;
     }
 
     pub fn remove_all_charges(&mut self) {

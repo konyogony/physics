@@ -9,6 +9,26 @@ use shaders_shared::{Charge, EPSILON_SQ, Field, H, ShaderConstants, TracePoint};
 use spirv_std::num_traits::Float;
 use spirv_std::spirv;
 
+fn field_dir(pos: Vec2, charges: &[Charge], num_charges: u32, scale: f32) -> (Vec2, f32) {
+    let mut vel = Vec2::ZERO;
+    for i in 0..num_charges {
+        let c = charges[i as usize];
+        let c_pos = Vec2::new(c.position[0], c.position[1]);
+        let q = c.charge * scale;
+        let r = pos - c_pos;
+        let r_sq_eps = r.length_squared() + EPSILON_SQ;
+        let denom = r_sq_eps * r_sq_eps.sqrt();
+        vel += q * r / denom;
+    }
+    let strength = vel.length();
+    let dir = if strength > 1e-6 {
+        vel / strength
+    } else {
+        Vec2::ZERO
+    };
+    (dir, strength)
+}
+
 // EXACT SAME CODE AS IN PARTICLE, JUST ADAPTED FOR CHARGES NOW
 #[spirv(vertex(entry_point_name = "electric_vs"))]
 pub fn electric_vs(
@@ -82,7 +102,7 @@ pub fn electric_potential_cs(
         // since not centered js remove the centering hjere aswell
         let charge_coords = Vec2::new(charge_pos[0], charge_pos[1]);
 
-        let q = charge.charge;
+        let q = charge.charge * constants.electric_options.charge_strength_scale;
         // Forgot to square this aswell, for the softening factor to work
         let r_sq = (current_coords - charge_coords).length_squared();
         // Usually potential is q / r, however for simulation purposes so that test charges dont
@@ -146,7 +166,6 @@ pub fn electric_tracing_cs(
     #[spirv(global_invocation_id)] global_invocation_id: UVec3,
     #[spirv(descriptor_set = 0, binding = 0, storage_buffer)] constants: &ShaderConstants,
     #[spirv(descriptor_set = 1, binding = 0, storage_buffer)] charges: &[Charge],
-    #[spirv(descriptor_set = 1, binding = 2, storage_buffer)] electric_field: &mut [Field],
     #[spirv(descriptor_set = 1, binding = 3, storage_buffer)] tracing: &mut [TracePoint],
 ) {
     let particle_id = global_invocation_id.x as usize;
@@ -184,11 +203,10 @@ pub fn electric_tracing_cs(
             (particle_id as u32 * constants.electric_options.max_steps + step) as usize;
         tracing[tracing_index].pos = current_pos.into();
 
-        let x = current_pos.x.floor() as i32;
-        let y = current_pos.y.floor() as i32;
-
-        let out_of_bounds =
-            x <= 0 || x >= constants.width as i32 || y <= 0 || y >= constants.height as i32;
+        //let x = current_pos.x.floor() as i32;
+        //let y = current_pos.y.floor() as i32;
+        //let out_of_bounds =
+        //    x <= 0 || x >= constants.width as i32 || y <= 0 || y >= constants.height as i32;
 
         let mut near_charge = false;
         // Loop throuhg all charges and check if we are close to any of them
@@ -203,7 +221,7 @@ pub fn electric_tracing_cs(
         }
 
         // Basically if conditions are met, we just set remaining positions to same position
-        if near_charge || out_of_bounds {
+        if near_charge {
             for remaining in (step + 1)..constants.electric_options.max_steps {
                 let index = (particle_id as u32 * constants.electric_options.max_steps + remaining)
                     as usize;
@@ -213,29 +231,26 @@ pub fn electric_tracing_cs(
             break;
         }
 
-        let pos_index = x + y * constants.width as i32;
-        let field_reading = electric_field[pos_index as usize];
+        // Basically, instead of reading from the electric field (which is what was limiting us
+        // before to compute out of bounds, we simply just calculate it on the spot)
+        let scale = constants.electric_options.charge_strength_scale;
+        let h = constants.electric_options.step_size;
 
-        // Extract velocity
-        let velocity = field_reading.field;
-        let vel = Vec2::new(velocity[0], velocity[1]);
-        let strength = vel.length();
-
-        // Terminate since basically stuck.
-        if strength < 1e-6 {
+        let (k1, k1_strength) = field_dir(current_pos, charges, constants.num_charges, scale);
+        if k1_strength < 1e-6 {
             for remaining in (step + 1)..constants.electric_options.max_steps {
                 let index = (particle_id as u32 * constants.electric_options.max_steps + remaining)
                     as usize;
-
-                tracing[index].pos = current_pos.into()
+                tracing[index].pos = current_pos.into();
             }
             break;
         }
 
-        // Normalized.
-        let dir = vel / strength;
-        // Update position of particle
-        current_pos += dir * constants.electric_options.step_size;
+        let mid_pos = current_pos + k1 * (h * 0.5);
+        let (k2, k2_strength) = field_dir(mid_pos, charges, constants.num_charges, scale);
+        let k2 = if k2_strength > 1e-6 { k2 } else { k1 };
+
+        current_pos += k2 * h;
     }
 }
 

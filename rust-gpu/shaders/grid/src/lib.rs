@@ -10,12 +10,15 @@ use glam::{Vec2, Vec4, Vec4Swizzles};
 use shaders_shared::{
     ARROW_HEAD_HEIGHT_PX, ARROW_HEAD_WIDTH_PX, ARROW_SCALE, ARROW_THICKNESS_PX, AXIS_COLOR,
     BG_COLOR, Field, GRID_COLOR, GRID_SPACING_PX, GRID_THICKNESS_PX, HIGHLIGHT_COLOR,
-    HIGHLIGHT_SQUARES, MIN_ARROW_SCALE, SDF, ShaderConstants, antialias, antialias_no_fwidth, hsv,
-    map_range, smoothstep,
+    HIGHLIGHT_SQUARES, MIN_ARROW_SCALE, ShaderConstants,
+    sdf::SDF,
+    util::{antialias, antialias_no_fwidth, hsv, map_range, smoothstep},
 };
 #[allow(unused_imports)]
 use spirv_std::num_traits::Float;
 use spirv_std::spirv;
+
+pub const MULTIPLIER: f32 = 0.3;
 
 #[spirv(vertex(entry_point_name = "grid_vs"))]
 pub fn grid_vs(#[spirv(vertex_index)] vert_id: i32, #[spirv(position)] vtx_pos: &mut Vec4) {
@@ -81,11 +84,17 @@ pub fn grid_fs(
         let index_x = (current_pos.x / GRID_SPACING_PX).floor();
         let index_y = (current_pos.y / GRID_SPACING_PX).floor();
 
+        let coverage = if constants.draw_options.draw_normalised_vec == 1 {
+            1
+        } else {
+            2
+        };
+
         // Basically, now instead of just getting the closest point (index * GRID_SPACING), which
         // will cut off the lines, we will loop through the neughboring points aswell, by adding or
         // subtracting the GRID_SPACING
-        for i in -1..=1 {
-            for j in -1..=1 {
+        for i in -(coverage)..=(coverage) {
+            for j in -(coverage)..=(coverage) {
                 let start_point = Vec2::new(
                     index_x * GRID_SPACING_PX + GRID_SPACING_PX * i as f32,
                     index_y * GRID_SPACING_PX + GRID_SPACING_PX * j as f32,
@@ -113,10 +122,19 @@ pub fn grid_fs(
                 // acquire the coordinates for fun)
                 let perp_dir = Vec2::new(dir.y, -dir.x);
 
+                let arrow_scale = if constants.draw_options.draw_normalised_vec == 1 {
+                    ARROW_SCALE
+                } else {
+                    let raw = len.sqrt() * ARROW_SCALE * MULTIPLIER;
+                    // cannot be larger than 2 squares, but 0.8 so we can account for the tip
+                    raw.min(GRID_SPACING_PX * 1.8)
+                };
+
                 // Now actually bring this vec to the correct position in space
                 // Make sure its normalized and the correct scaling is applied
-                let relative_vec = start_point + dir * ARROW_SCALE;
+                let relative_vec = start_point + dir * arrow_scale;
 
+                // This logic should not be affected by the normalisation option
                 // Same logic as in nannou version,
                 // we map and scale and do stuff to the magnitude to acquire a color value.
                 let strength = len / (len + constants.color_value);
@@ -148,7 +166,7 @@ pub fn grid_fs(
         }
     }
 
-    if constants.draw_options.draw_potential == 1 {
+    if constants.draw_options.draw_potential == 1 && constants.num_charges > 0 {
         let index = px_x.floor() as i32 + px_y.floor() as i32 * constants.width as i32;
         let rgba = constants.electric_options.equipotential_color_rgba;
         let color = Vec4::new(rgba[0], rgba[1], rgba[2], rgba[3]);

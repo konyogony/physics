@@ -158,11 +158,26 @@ impl Renderer {
         // Dont forget to drop after each pass
         drop(cpass);
 
+        let labels: Vec<(egui::Pos2, f32)> = self
+            .electric_manager
+            .charges
+            .clone()
+            .into_iter()
+            .map(|c| (c.position.into(), c.charge))
+            .collect();
+
         // Before render pass we prepare
-        if self.ui_manager.active {
+        self.ui_manager.prepare(
+            window,
+            &self.device,
+            &self.queue,
+            &mut cmd_encoder,
+            &labels,
             self.ui_manager
-                .prepare(window, &self.device, &self.queue, &mut cmd_encoder);
-        }
+                .input_values
+                .electric_ui_options
+                .charge_radius,
+        );
 
         // After all the computer passes are done, create & call the rneder passes.
         let mut rpass = cmd_encoder.begin_render_pass(&RenderPassDescriptor {

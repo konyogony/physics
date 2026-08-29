@@ -203,11 +203,11 @@ impl State {
                         .committed_input_values
                         .electric_ui_options
                         .num_particles_per_charge,
-                    self.renderer
-                        .ui_manager
-                        .committed_input_values
-                        .electric_ui_options
-                        .charge_strength,
+                    //self.renderer
+                    //    .ui_manager
+                    //    .committed_input_values
+                    //    .electric_ui_options
+                    //    .charge_strength,
                 );
 
                 let config = self.swapchain.get_config().unwrap();
@@ -297,24 +297,18 @@ impl State {
                 &self.renderer.global_bind_group_layout,
                 input_values.electric_ui_options.max_steps,
                 input_values.electric_ui_options.num_particles_per_charge,
-                input_values.electric_ui_options.charge_strength,
+                //input_values.electric_ui_options.charge_strength,
             );
         }
 
-        if self
-            .renderer
-            .ui_manager
-            .input_values
-            .charge_spawn_ui_options
-            .toggle_charge
-        {
-            self.renderer
-                .ui_manager
-                .input_values
-                .charge_spawn_ui_options
-                .toggle_charge = false;
-
-            self.renderer.electric_manager.toggle_charge();
+        if input_values.charge_spawn_ui_options.charge != committed.charge_spawn_ui_options.charge {
+            self.renderer.electric_manager.set_next_charge(
+                self.renderer
+                    .ui_manager
+                    .input_values
+                    .charge_spawn_ui_options
+                    .charge,
+            );
         }
 
         if self
@@ -373,7 +367,7 @@ impl State {
                     epsilon_naught: ((8.9_f32).powi(-8)),
                     num_charges: self.renderer.electric_manager.charges.len() as u32,
                     color_value: self.renderer.ui_manager.committed_input_values.color_value,
-                    _pad1: [0.0; 3],
+                    _pad1: [0.0; 2],
                     draw_options: DrawOptions::from(
                         &self.renderer.ui_manager.committed_input_values,
                     ),

@@ -1,39 +1,8 @@
+use crate::wgpu_renderer::ui::ui::UI;
 use wgpu::{CommandEncoder, Device, Queue, SurfaceConfiguration, TextureFormat};
 use winit::{event::WindowEvent, window::Window};
 
-use crate::wgpu_renderer::ui::ui::UI;
-
-pub const DEFAULT_CONFIG: InputValues = InputValues {
-    draw_ui_options: DrawUIOptions {
-        draw_grid: true,
-        draw_vec: true,
-        draw_potential: false,
-        draw_field_lines: false,
-    },
-    particle_ui_options: ParticleUIOptions {
-        time_scale: 1.0,
-        particle_radius: 10.0,
-        polygon_vertices: 72,
-    },
-    electric_ui_options: ElectricUIOptions {
-        charge_radius: 15.0,
-        num_particles_per_charge: 60,
-        max_steps: 550,
-        step_size: 3.0,
-        stop_distance: 14.5,
-        charge_strength: 1.0,
-        equipotential_color_rgba: [0.0, 0.545, 0.545, 1.0],
-    },
-    charge_spawn_ui_options: ChargeSpawnUIOptions {
-        x: 0.0,
-        y: 0.0,
-        toggle_charge: false,
-        spawn: false,
-    },
-    color_value: 5.0,
-};
-
-#[derive(Default, Clone, Copy, PartialEq)]
+#[derive(Clone, Copy, PartialEq)]
 pub struct InputValues {
     pub draw_ui_options: DrawUIOptions,
     pub particle_ui_options: ParticleUIOptions,
@@ -42,12 +11,48 @@ pub struct InputValues {
     pub color_value: f32,
 }
 
+impl Default for InputValues {
+    fn default() -> Self {
+        Self {
+            draw_ui_options: DrawUIOptions {
+                draw_grid: true,
+                draw_vec: true,
+                draw_potential: false,
+                draw_field_lines: false,
+                draw_normalised_vec: true,
+            },
+            particle_ui_options: ParticleUIOptions {
+                time_scale: 1.0,
+                particle_radius: 10.0,
+                polygon_vertices: 72,
+            },
+            electric_ui_options: ElectricUIOptions {
+                charge_radius: 15.0,
+                num_particles_per_charge: 60,
+                max_steps: 550,
+                step_size: 3.0,
+                stop_distance: 14.5,
+                charge_strength_scale: 1.0,
+                equipotential_color_rgba: [0.0, 0.545, 0.545, 1.0],
+            },
+            charge_spawn_ui_options: ChargeSpawnUIOptions {
+                x: 0.0,
+                y: 0.0,
+                charge: 1.0,
+                spawn: false,
+            },
+            color_value: 5.0,
+        }
+    }
+}
+
 #[derive(Default, Clone, Copy, PartialEq)]
 pub struct DrawUIOptions {
     pub draw_grid: bool,
     pub draw_vec: bool,
     pub draw_potential: bool,
     pub draw_field_lines: bool,
+    pub draw_normalised_vec: bool,
 }
 
 #[derive(Default, Clone, Copy, PartialEq)]
@@ -64,7 +69,7 @@ pub struct ChargeSpawnUIOptions {
     pub x: f32,
     pub y: f32,
     // For now we are only limiting to charges with same strength, but only neg / pos
-    pub toggle_charge: bool,
+    pub charge: f32,
     pub spawn: bool,
 }
 
@@ -75,7 +80,7 @@ pub struct ElectricUIOptions {
     pub max_steps: usize,
     pub step_size: f32,
     pub stop_distance: f32,
-    pub charge_strength: f32,
+    pub charge_strength_scale: f32,
     pub equipotential_color_rgba: [f32; 4],
 }
 
@@ -119,8 +124,8 @@ impl UIManager {
             renderer,
             state,
             screen_descriptor,
-            input_values: DEFAULT_CONFIG,
-            committed_input_values: DEFAULT_CONFIG,
+            input_values: InputValues::default(),
+            committed_input_values: InputValues::default(),
             clipped_primitives: Vec::new(),
         }
     }
@@ -146,12 +151,33 @@ impl UIManager {
         device: &Device,
         queue: &Queue,
         encoder: &mut CommandEncoder,
+        charges: &[(egui::Pos2, f32)],
+        radius: f32,
     ) {
         let raw_input = self.state.take_egui_input(window);
         let context = self.state.egui_ctx().clone();
+        let ppp = self.screen_descriptor.pixels_per_point;
 
         let output = context.run_ui(raw_input, |ctx| {
             UI::new().main(self, ctx);
+
+            // Awesome way to draw text, was easier than wgpu_text
+            let painter = ctx.layer_painter(egui::LayerId::new(
+                egui::Order::Foreground,
+                egui::Id::new("charge_labels"),
+            ));
+
+            for (pos, charge) in charges {
+                let screen_pos = egui::pos2(pos.x / ppp, pos.y / ppp);
+                let label = format!("{:.1} C", charge);
+                painter.text(
+                    screen_pos,
+                    egui::Align2::CENTER_CENTER,
+                    label,
+                    egui::FontId::proportional(11.0 * (radius / 15.0)),
+                    egui::Color32::BLACK,
+                );
+            }
         });
 
         self.state

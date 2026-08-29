@@ -21,8 +21,11 @@ impl UI {
                     self.drag_value(ui, &mut manager.input_values.color_value, "Color Value");
                     self.drag_value(
                         ui,
-                        &mut manager.input_values.electric_ui_options.charge_strength,
-                        "Charge Strength",
+                        &mut manager
+                            .input_values
+                            .electric_ui_options
+                            .charge_strength_scale,
+                        "Charge Strength Scale",
                     );
                     self.controls(ui);
                 });
@@ -39,6 +42,10 @@ impl UI {
                 ui.checkbox(
                     &mut manager.input_values.draw_ui_options.draw_vec,
                     "Draw Vector Arrows",
+                );
+                ui.checkbox(
+                    &mut manager.input_values.draw_ui_options.draw_normalised_vec,
+                    "Normalise Vector Arrows",
                 );
                 ui.checkbox(
                     &mut manager.input_values.draw_ui_options.draw_potential,
@@ -134,10 +141,10 @@ impl UI {
                     "Charge Spawn Y",
                 );
 
-                self.button_toggle(
+                self.drag_value(
                     ui,
-                    &mut manager.input_values.charge_spawn_ui_options.toggle_charge,
-                    "Switch Charge",
+                    &mut manager.input_values.charge_spawn_ui_options.charge,
+                    "Charge (C)",
                 );
 
                 self.button_toggle(
@@ -153,7 +160,7 @@ impl UI {
         ui.collapsing("Controls", |ui| {
             ui.label("F10 to toggle menu");
             ui.label("F11 to toggle fullscreen");
-            ui.label("X to switch charge");
+            ui.label("X to switch signs of next charge");
             ui.label("Ctrl+C to clear charges");
             ui.label("Shift+C to clear particles");
             ui.label("LMB to spawn test particle");
