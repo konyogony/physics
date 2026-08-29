@@ -1,0 +1,53 @@
+name: Release Build
+
+on:
+  release:
+    types: [published]
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+            bin: app
+            asset: physics-linux-x86_64
+          - os: windows-latest
+            target: x86_64-pc-windows-msvc
+            bin: app.exe
+            asset: physics-windows-x86_64.exe
+
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - name: Cache cargo
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: rust-gpu
+
+      - name: Install Linux build deps
+        if: matrix.os == 'ubuntu-latest'
+        run: sudo apt-get update && sudo apt-get install -y clang lld
+
+      - name: Build
+        working-directory: rust-gpu
+        run: cargo build --release --locked --target ${{ matrix.target }} -p app
+
+      - name: Stage binary
+        shell: bash
+        run: |
+          mkdir -p dist
+          cp rust-gpu/target/${{ matrix.target }}/release/${{ matrix.bin }} dist/${{ matrix.asset }}
+
+      - name: Upload to release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/${{ matrix.asset }}

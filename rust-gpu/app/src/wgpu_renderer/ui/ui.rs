@@ -156,6 +156,8 @@ impl UI {
             ui.label("X to switch charge");
             ui.label("Ctrl+C to clear charges");
             ui.label("Shift+C to clear particles");
+            ui.label("LMB to spawn test particle");
+            ui.label("RMB to spawn charge");
         });
     }
 
