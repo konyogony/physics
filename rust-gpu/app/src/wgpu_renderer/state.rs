@@ -1,6 +1,7 @@
 use crate::wgpu_renderer::keyboard::InputActions;
 use crate::wgpu_renderer::renderer::Renderer;
 use crate::wgpu_renderer::swapchain::SwapchainManager;
+use crate::wgpu_renderer::ui::manager::CurrentTool;
 use crate::wgpu_renderer::{keyboard::Keyboard, mouse::Mouse};
 use anyhow::Context;
 use shaders_shared::{Charge, DrawOptions, ElectricOptions, ParticleOptions, ShaderConstants};
@@ -15,7 +16,6 @@ use winit::{
 };
 pub const DEFAULT_MAX_STEPS: usize = 10000;
 pub const DEFAULT_NUM_PARTICLES_PER_CHARGE: u32 = 12;
-pub const DEFAULT_CHARGE_STRENGTH: f32 = 0.1;
 
 // State struct will be managing all the sub-processes
 pub struct State {
@@ -115,7 +115,6 @@ impl State {
             charges,
             DEFAULT_MAX_STEPS,
             DEFAULT_NUM_PARTICLES_PER_CHARGE,
-            DEFAULT_CHARGE_STRENGTH,
         )?;
 
         // Create a mouse manager-ish
@@ -159,15 +158,36 @@ impl State {
                 self.mouse.update_button(button, state);
 
                 if self.mouse.buttons_state.lmb == ElementState::Pressed {
-                    self.renderer
-                        .particle_manager
-                        .add_particle(&self.renderer.queue, self.mouse.position);
+                    match self.renderer.ui_manager.committed_input_values.tool {
+                        CurrentTool::Charge => self
+                            .renderer
+                            .electric_manager
+                            .add_charge(&self.renderer.queue, self.mouse.position),
+                        CurrentTool::Particle => self
+                            .renderer
+                            .particle_manager
+                            .add_particle(&self.renderer.queue, self.mouse.position),
+                    }
                 }
 
                 if self.mouse.buttons_state.rmb == ElementState::Pressed {
-                    self.renderer
-                        .electric_manager
-                        .add_charge(&self.renderer.queue, self.mouse.position);
+                    match self.renderer.ui_manager.committed_input_values.tool {
+                        CurrentTool::Charge => self
+                            .renderer
+                            .electric_manager
+                            .remove_charge(&self.renderer.queue, self.mouse.position, Some(200.0))
+                            .is_some(),
+                        CurrentTool::Particle => self
+                            .renderer
+                            .particle_manager
+                            .remove_particle(
+                                &self.renderer.device,
+                                &self.renderer.queue,
+                                self.mouse.position,
+                                Some(200.0),
+                            )
+                            .is_some(),
+                    };
                 }
             }
 
@@ -267,9 +287,23 @@ impl State {
 
         if input_actions.toggle_charge {
             self.renderer.electric_manager.toggle_charge();
+            self.renderer
+                .ui_manager
+                .input_values
+                .charge_spawn_ui_options
+                .charge = -self
+                .renderer
+                .ui_manager
+                .input_values
+                .charge_spawn_ui_options
+                .charge
         }
         if input_actions.toggle_ui {
             self.renderer.ui_manager.toggle_active();
+        }
+
+        if input_actions.cycle_tool {
+            self.renderer.ui_manager.cycle_tool();
         }
     }
 

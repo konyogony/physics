@@ -41,7 +41,6 @@ impl Renderer {
         charges_vec: Vec<Charge>,
         max_steps: usize,
         num_particles_per_charge: u32,
-        charge_strength: f32,
     ) -> anyhow::Result<Self> {
         // Create all the bind groups first. Global bind group just refers to the one holding
         // shader constants, hence global.
@@ -67,7 +66,6 @@ impl Renderer {
             charges_vec,
             max_steps,
             num_particles_per_charge,
-            charge_strength,
         );
 
         let ui_manager = UIManager::new(window, &device, &config, out_format);

@@ -1,6 +1,17 @@
 use crate::wgpu_renderer::ui::ui::UI;
+use enum_iterator::Sequence;
+use strum_macros::Display;
 use wgpu::{CommandEncoder, Device, Queue, SurfaceConfiguration, TextureFormat};
 use winit::{event::WindowEvent, window::Window};
+
+#[derive(Clone, Copy, PartialEq, Eq, Default, Sequence, Display)]
+pub enum CurrentTool {
+    #[strum(to_string = "Spawn Test Charge")]
+    Particle,
+    #[default]
+    #[strum(to_string = "Spawn Charge")]
+    Charge,
+}
 
 #[derive(Clone, Copy, PartialEq)]
 pub struct InputValues {
@@ -8,6 +19,7 @@ pub struct InputValues {
     pub particle_ui_options: ParticleUIOptions,
     pub electric_ui_options: ElectricUIOptions,
     pub charge_spawn_ui_options: ChargeSpawnUIOptions,
+    pub tool: CurrentTool,
     pub color_value: f32,
 }
 
@@ -22,7 +34,7 @@ impl Default for InputValues {
                 draw_normalised_vec: true,
             },
             particle_ui_options: ParticleUIOptions {
-                time_scale: 1.0,
+                time_scale: (1.0, 0.0),
                 particle_radius: 10.0,
                 polygon_vertices: 72,
             },
@@ -41,6 +53,7 @@ impl Default for InputValues {
                 charge: 1.0,
                 spawn: false,
             },
+            tool: CurrentTool::default(),
             color_value: 5.0,
         }
     }
@@ -55,9 +68,12 @@ pub struct DrawUIOptions {
     pub draw_normalised_vec: bool,
 }
 
+// current, previous
+pub type TimeScale = (f32, f32);
+
 #[derive(Default, Clone, Copy, PartialEq)]
 pub struct ParticleUIOptions {
-    pub time_scale: f32,
+    pub time_scale: TimeScale,
     pub particle_radius: f32,
     pub polygon_vertices: u32,
 }
@@ -128,6 +144,12 @@ impl UIManager {
             committed_input_values: InputValues::default(),
             clipped_primitives: Vec::new(),
         }
+    }
+
+    pub fn cycle_tool(&mut self) {
+        let mut iter = enum_iterator::all::<CurrentTool>().cycle();
+        iter.find(|i| i == &self.input_values.tool);
+        self.input_values.tool = iter.next().unwrap_or_default();
     }
 
     pub fn toggle_active(&mut self) {

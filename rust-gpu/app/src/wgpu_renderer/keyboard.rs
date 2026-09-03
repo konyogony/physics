@@ -16,6 +16,7 @@ pub struct InputActions {
     pub remove_charges: bool,
     pub toggle_charge: bool,
     pub toggle_ui: bool,
+    pub cycle_tool: bool,
 }
 
 #[derive(Default, Debug, Clone)]
@@ -41,9 +42,9 @@ impl Keyboard {
         false
     }
 
-    pub fn is_just_pressed(&self, key: PhysicalKey, event_state: ElementState) -> bool {
-        event_state == ElementState::Pressed && self.is_pressed(key)
-    }
+    // pub fn is_just_pressed(&self, key: PhysicalKey, event_state: ElementState) -> bool {
+    //     event_state == ElementState::Pressed && self.is_pressed(key)
+    // }
 
     pub fn get_input_actions(
         &self,
@@ -83,6 +84,7 @@ impl Keyboard {
                     }
                 }
                 PhysicalKey::Code(KeyCode::KeyX) => actions.toggle_charge = true,
+                PhysicalKey::Code(KeyCode::KeyZ) => actions.cycle_tool = true,
                 PhysicalKey::Code(KeyCode::F10) => actions.toggle_ui = true,
                 _ => {}
             }

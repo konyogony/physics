@@ -17,7 +17,6 @@ pub struct ElectricManager {
     pub next_charge: f32,
     pub num_particles_per_charge: u32,
     pub max_steps: usize,
-    pub charge_strength: f32,
 }
 
 impl ElectricManager {
@@ -29,7 +28,6 @@ impl ElectricManager {
         charges: Vec<Charge>,
         max_steps: usize,
         num_particles_per_charge: u32,
-        charge_strength: f32,
     ) -> Self {
         let buffer_size = (std::mem::size_of::<Charge>() * MAX_CHARGES as usize) as u64;
         let electric_storage_buffers = global_bind_group_layout.create_electric_buffers(
@@ -53,7 +51,6 @@ impl ElectricManager {
             next_charge: 1.0,
             max_steps,
             num_particles_per_charge,
-            charge_strength,
         }
     }
 
@@ -95,6 +92,50 @@ impl ElectricManager {
         self.size = new_size;
         self.max_steps = max_steps;
         self.num_particles_per_charge = num_particles_per_charge;
+    }
+
+    pub fn remove_charge(
+        &mut self,
+        queue: &Queue,
+        position: [f32; 2],
+        max_distance: Option<f32>,
+    ) -> Option<Charge> {
+        if self.charges.is_empty() {
+            return None;
+        }
+
+        // go through all charges, enumerate to get index and charge.
+        // then calculate distance between the charge and position of cursor
+        // then get closest one
+        let (closest_idx, min_dist_sq) = self
+            .charges
+            .iter()
+            .enumerate()
+            .map(|(idx, charge)| {
+                let dx = charge.position[0] - position[0];
+                let dy = charge.position[1] - position[1];
+                let dist_sq = dx * dx + dy * dy;
+                (idx, dist_sq)
+            })
+            .min_by(|a, b| a.1.total_cmp(&b.1))?;
+
+        // make sure its actually close tho
+        if let Some(max_dist) = max_distance
+            && min_dist_sq > max_dist * max_dist
+        {
+            return None;
+        }
+
+        let removed = self.charges.swap_remove(closest_idx);
+        if !self.charges.is_empty() {
+            queue.write_buffer(
+                &self.electric_storage_buffers.charges,
+                0,
+                bytemuck::cast_slice(&self.charges),
+            );
+        }
+
+        Some(removed)
     }
 
     pub fn add_charge(&mut self, queue: &Queue, position: [f32; 2]) {

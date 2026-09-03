@@ -85,7 +85,7 @@ impl From<&InputValues> for DrawOptions {
 impl From<&InputValues> for ParticleOptions {
     fn from(value: &InputValues) -> Self {
         Self {
-            time_scale: value.particle_ui_options.time_scale,
+            time_scale: value.particle_ui_options.time_scale.0,
             particle_radius: value.particle_ui_options.particle_radius,
             polygon_vertices: value.particle_ui_options.polygon_vertices,
             _pad: 0.0,

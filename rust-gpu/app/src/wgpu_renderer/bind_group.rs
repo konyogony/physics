@@ -195,14 +195,20 @@ impl GlobalBindGroupLayout {
             label: Some("ParticlesBufferA"),
             size,
             mapped_at_creation: false,
-            usage: BufferUsages::STORAGE | BufferUsages::VERTEX | BufferUsages::COPY_DST,
+            usage: BufferUsages::STORAGE
+                | BufferUsages::VERTEX
+                | BufferUsages::COPY_DST
+                | BufferUsages::COPY_SRC,
         });
 
         let particles_buffer_b = device.create_buffer(&BufferDescriptor {
             label: Some("ParticlesBufferB"),
             size,
             mapped_at_creation: false,
-            usage: BufferUsages::STORAGE | BufferUsages::VERTEX | BufferUsages::COPY_DST,
+            usage: BufferUsages::STORAGE
+                | BufferUsages::VERTEX
+                | BufferUsages::COPY_DST
+                | BufferUsages::COPY_SRC,
         });
 
         ParticleBuffers {

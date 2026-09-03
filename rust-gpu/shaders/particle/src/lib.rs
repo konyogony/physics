@@ -84,6 +84,7 @@ pub fn particle_cs(
         }
         // Calculate the velocity of the particle at its specific point in space & time.
         let velocity = electric_field[index].field;
+
         // Apply that velocity
         particle.position[0] += velocity[0] * constants.dt * constants.particle_options.time_scale;
         particle.position[1] += velocity[1] * constants.dt * constants.particle_options.time_scale;

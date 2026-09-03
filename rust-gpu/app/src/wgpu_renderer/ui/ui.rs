@@ -1,5 +1,6 @@
+#![allow(deprecated)]
 use crate::wgpu_renderer::ui::manager::UIManager;
-use egui::{Button, Context, DragValue, Ui};
+use egui::{Button, Context, DragValue, Pos2, Ui};
 
 pub struct UI;
 
@@ -9,10 +10,17 @@ impl UI {
     }
 
     pub fn main(&self, manager: &mut UIManager, ctx: &Context) {
+        egui::Panel::top("top_panel")
+            .resizable(false)
+            .show(ctx, |ui| {
+                self.draw_top_bar(manager, ui);
+            });
+
         egui::Window::new("Configuration")
             .collapsible(true)
             .resizable(true)
             .default_width(400.0)
+            .default_pos(Pos2::new(50.0, 50.0))
             .show(ctx, |ui| {
                 egui::ScrollArea::vertical().show(ui, |ui| {
                     self.draw_options(manager, ui);
@@ -30,6 +38,37 @@ impl UI {
                     self.controls(ui);
                 });
             });
+    }
+
+    pub fn draw_top_bar(&self, manager: &mut UIManager, ui: &mut Ui) {
+        ui.horizontal(|ui| {
+            ui.label(format!("Current tool: {}", manager.input_values.tool));
+
+            ui.separator();
+            ui.label(format!(
+                "Current Charge: {}C",
+                manager.input_values.charge_spawn_ui_options.charge
+            ));
+
+            ui.separator();
+
+            ui.label(format!(
+                "Time Scale: {}",
+                manager.input_values.particle_ui_options.time_scale.0
+            ));
+
+            let paused = manager.input_values.particle_ui_options.time_scale.0 == 0.0;
+            if ui
+                .button(egui::RichText::new(if paused { "⏸" } else { "▶" }).size(16.0))
+                .clicked()
+            {
+                manager.input_values.particle_ui_options.time_scale = if paused {
+                    (manager.input_values.particle_ui_options.time_scale.1, 0.0)
+                } else {
+                    (0.0, manager.input_values.particle_ui_options.time_scale.0)
+                }
+            }
+        });
     }
 
     pub fn draw_options(&self, manager: &mut UIManager, ui: &mut Ui) {
@@ -69,7 +108,7 @@ impl UI {
                 );
                 self.drag_value(
                     ui,
-                    &mut manager.input_values.particle_ui_options.time_scale,
+                    &mut manager.input_values.particle_ui_options.time_scale.0,
                     "Time Scale",
                 );
                 self.drag_value(
@@ -161,10 +200,11 @@ impl UI {
             ui.label("F10 to toggle menu");
             ui.label("F11 to toggle fullscreen");
             ui.label("X to switch signs of next charge");
+            ui.label("Z to cycle through tools");
             ui.label("Ctrl+C to clear charges");
             ui.label("Shift+C to clear particles");
-            ui.label("LMB to spawn test particle");
-            ui.label("RMB to spawn charge");
+            ui.label("LMB to spawn");
+            ui.label("RMB to remove");
         });
     }
 

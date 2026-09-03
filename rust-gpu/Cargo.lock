@@ -153,7 +153,7 @@ checksum = "7f202df86484c868dbad7eaa557ef785d5c66295e41b460ef922eca0723b842c"
 
 [[package]]
 name = "app"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
  "anyhow",
  "bytemuck",
@@ -161,11 +161,14 @@ dependencies = [
  "egui",
  "egui-wgpu",
  "egui-winit",
+ "enum-iterator",
  "env_logger",
  "glam",
  "pollster",
  "raw-window-handle",
  "shaders-shared",
+ "strum",
+ "strum_macros",
  "wgpu",
  "winit",
 ]
@@ -738,6 +741,26 @@ dependencies = [
 ]
 
 [[package]]
+name = "enum-iterator"
+version = "2.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a4549325971814bda7a44061bf3fe7e487d447cba01e4220a4b454d630d7a016"
+dependencies = [
+ "enum-iterator-derive",
+]
+
+[[package]]
+name = "enum-iterator-derive"
+version = "1.5.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "685adfa4d6f3d765a26bc5dbc936577de9abf756c1feeb3089b01dd395034842"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn",
+]
+
+[[package]]
 name = "env_filter"
 version = "1.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1102,6 +1125,12 @@ name = "hashbrown"
 version = "0.17.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "4f467dd6dccf739c208452f8014c75c18bb8301b050ad1cfb27153803edb0f51"
+
+[[package]]
+name = "heck"
+version = "0.5.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2304e00983f87ffb38b55b444b5e3b60a884b5d30c0fca7d82fe33449bbe55ea"
 
 [[package]]
 name = "hermit-abi"
@@ -2485,7 +2514,7 @@ dependencies = [
 
 [[package]]
 name = "shaders-electric"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
  "bytemuck",
  "glam",
@@ -2495,7 +2524,7 @@ dependencies = [
 
 [[package]]
 name = "shaders-grid"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
  "bytemuck",
  "glam",
@@ -2505,7 +2534,7 @@ dependencies = [
 
 [[package]]
 name = "shaders-particle"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
  "bytemuck",
  "glam",
@@ -2515,7 +2544,7 @@ dependencies = [
 
 [[package]]
 name = "shaders-shared"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
  "bytemuck",
  "glam",
@@ -2734,6 +2763,24 @@ name = "strict-num"
 version = "0.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6637bab7722d379c8b41ba849228d680cc12d0a45ba1fa2b48f2a30577a06731"
+
+[[package]]
+name = "strum"
+version = "0.28.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9628de9b8791db39ceda2b119bbe13134770b56c138ec1d3af810d045c04f9bd"
+
+[[package]]
+name = "strum_macros"
+version = "0.28.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ab85eea0270ee17587ed4156089e10b9e6880ee688791d45a905f5b1ca36f664"
+dependencies = [
+ "heck",
+ "proc-macro2",
+ "quote",
+ "syn",
+]
 
 [[package]]
 name = "syn"

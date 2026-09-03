@@ -28,6 +28,9 @@ glam.workspace = true
 egui = "0.34.2"
 egui-winit = "0.34.2"
 egui-wgpu = "0.34.2"
+enum-iterator = "2.3.0"
+strum = "0.28.0"
+strum_macros = "0.28.0"
 
 [build-dependencies]
 # rust-gpu
