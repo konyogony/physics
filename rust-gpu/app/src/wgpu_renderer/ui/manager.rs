@@ -1,4 +1,4 @@
-use crate::wgpu_renderer::ui::ui::UI;
+use crate::wgpu_renderer::ui::UI;
 use enum_iterator::Sequence;
 use strum_macros::Display;
 use wgpu::{CommandEncoder, Device, Queue, SurfaceConfiguration, TextureFormat};
@@ -37,6 +37,8 @@ impl Default for InputValues {
                 time_scale: (1.0, 0.0),
                 particle_radius: 10.0,
                 polygon_vertices: 72,
+                clear_particles: false,
+                drag_value: 0.2,
             },
             electric_ui_options: ElectricUIOptions {
                 charge_radius: 15.0,
@@ -52,9 +54,10 @@ impl Default for InputValues {
                 y: 0.0,
                 charge: 1.0,
                 spawn: false,
+                clear_charges: false,
             },
             tool: CurrentTool::default(),
-            color_value: 5.0,
+            color_value: 10.0,
         }
     }
 }
@@ -76,6 +79,8 @@ pub struct ParticleUIOptions {
     pub time_scale: TimeScale,
     pub particle_radius: f32,
     pub polygon_vertices: u32,
+    pub clear_particles: bool,
+    pub drag_value: f32,
 }
 
 #[derive(Default, Clone, Copy, PartialEq)]
@@ -87,6 +92,7 @@ pub struct ChargeSpawnUIOptions {
     // For now we are only limiting to charges with same strength, but only neg / pos
     pub charge: f32,
     pub spawn: bool,
+    pub clear_charges: bool,
 }
 
 #[derive(Default, Clone, Copy, PartialEq)]
@@ -108,6 +114,9 @@ pub struct UIManager {
     pub input_values: InputValues,
     pub committed_input_values: InputValues,
     pub clipped_primitives: Vec<egui::ClippedPrimitive>,
+    // i had issues trusting egui to know if my cursor is over UI, so we will js compute & update
+    // value every frame...
+    pub pointer_over_ui: bool,
 }
 
 const VIEWPORT_ID: egui::ViewportId = egui::ViewportId::ROOT;
@@ -143,6 +152,7 @@ impl UIManager {
             input_values: InputValues::default(),
             committed_input_values: InputValues::default(),
             clipped_primitives: Vec::new(),
+            pointer_over_ui: false,
         }
     }
 
@@ -180,11 +190,11 @@ impl UIManager {
         let context = self.state.egui_ctx().clone();
         let ppp = self.screen_descriptor.pixels_per_point;
 
-        let output = context.run_ui(raw_input, |ctx| {
-            UI::new().main(self, ctx);
+        let output = context.run_ui(raw_input, |ui| {
+            UI::new().main(self, ui);
 
             // Awesome way to draw text, was easier than wgpu_text
-            let painter = ctx.layer_painter(egui::LayerId::new(
+            let painter = ui.ctx().layer_painter(egui::LayerId::new(
                 egui::Order::Foreground,
                 egui::Id::new("charge_labels"),
             ));
@@ -201,6 +211,8 @@ impl UIManager {
                 );
             }
         });
+
+        self.pointer_over_ui = context.is_pointer_over_egui();
 
         self.state
             .handle_platform_output(window, output.platform_output);

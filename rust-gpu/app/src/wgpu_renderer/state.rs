@@ -157,6 +157,10 @@ impl State {
             WindowEvent::MouseInput { state, button, .. } => {
                 self.mouse.update_button(button, state);
 
+                if self.renderer.ui_manager.pointer_over_ui {
+                    return Ok(());
+                }
+
                 if self.mouse.buttons_state.lmb == ElementState::Pressed {
                     match self.renderer.ui_manager.committed_input_values.tool {
                         CurrentTool::Charge => self
@@ -175,7 +179,7 @@ impl State {
                         CurrentTool::Charge => self
                             .renderer
                             .electric_manager
-                            .remove_charge(&self.renderer.queue, self.mouse.position, Some(200.0))
+                            .remove_charge(&self.renderer.queue, self.mouse.position, Some(100.0))
                             .is_some(),
                         CurrentTool::Particle => self
                             .renderer
@@ -184,7 +188,7 @@ impl State {
                                 &self.renderer.device,
                                 &self.renderer.queue,
                                 self.mouse.position,
-                                Some(200.0),
+                                Some(100.0),
                             )
                             .is_some(),
                     };
@@ -343,6 +347,36 @@ impl State {
                     .charge_spawn_ui_options
                     .charge,
             );
+        }
+
+        if self
+            .renderer
+            .ui_manager
+            .input_values
+            .particle_ui_options
+            .clear_particles
+        {
+            self.renderer
+                .ui_manager
+                .input_values
+                .particle_ui_options
+                .clear_particles = false;
+            self.renderer.particle_manager.remove_all_particles();
+        }
+
+        if self
+            .renderer
+            .ui_manager
+            .input_values
+            .charge_spawn_ui_options
+            .clear_charges
+        {
+            self.renderer
+                .ui_manager
+                .input_values
+                .charge_spawn_ui_options
+                .clear_charges = false;
+            self.renderer.electric_manager.remove_all_charges();
         }
 
         if self

@@ -9,6 +9,10 @@ use shaders_shared::{Charge, EPSILON_SQ, Field, H, ShaderConstants, TracePoint};
 use spirv_std::num_traits::Float;
 use spirv_std::spirv;
 
+const MIN_FIELD_STRENGTH: f32 = 1e-4;
+const MIN_STEP: f32 = 0.5;
+const DIST_SCALE: f32 = 0.05;
+
 fn field_dir(pos: Vec2, charges: &[Charge], num_charges: u32, scale: f32) -> (Vec2, f32) {
     let mut vel = Vec2::ZERO;
     for i in 0..num_charges {
@@ -21,12 +25,30 @@ fn field_dir(pos: Vec2, charges: &[Charge], num_charges: u32, scale: f32) -> (Ve
         vel += q * r / denom;
     }
     let strength = vel.length();
-    let dir = if strength > 1e-6 {
-        vel / strength
+
+    let clamped_strength = strength.max(MIN_FIELD_STRENGTH);
+    let dir = if clamped_strength > 1e-8 {
+        vel / clamped_strength
     } else {
-        Vec2::ZERO
+        Vec2::X
     };
+
     (dir, strength)
+}
+
+fn nearest_charge_distance(pos: Vec2, charges: &[Charge], num_charges: u32) -> f32 {
+    let mut min_dist = f32::MAX;
+    for i in 0..num_charges {
+        let c_pos = Vec2::new(
+            charges[i as usize].position[0],
+            charges[i as usize].position[1],
+        );
+        let d = (pos - c_pos).length();
+        if d < min_dist {
+            min_dist = d;
+        }
+    }
+    min_dist
 }
 
 // EXACT SAME CODE AS IN PARTICLE, JUST ADAPTED FOR CHARGES NOW
@@ -62,7 +84,6 @@ pub fn electric_vs(
     );
 
     *vtx_pos = pos_uv.extend(0.0).extend(1.0);
-    // For charges, we check if its negative or positive and apply color accordingly.
     if charge.charge < 0.0 {
         *vtx_color = Vec3::new(0.0, 1.0, 1.0);
     } else {
@@ -75,12 +96,10 @@ pub fn electric_fs(#[spirv(location = 0)] vtx_color: Vec3, output: &mut Vec4) {
     *output = vtx_color.extend(1.0);
 }
 
-// This will be ran for every pixel on the screen once.
 #[spirv(compute(threads(16, 16), entry_point_name = "electric_potential_cs"))]
 pub fn electric_potential_cs(
     #[spirv(global_invocation_id)] global_invocation_id: UVec3,
     #[spirv(descriptor_set = 0, binding = 0, storage_buffer)] constants: &ShaderConstants,
-    // No more textures. ONLY buffers.
     #[spirv(descriptor_set = 1, binding = 0, storage_buffer)] charges: &[Charge],
     #[spirv(descriptor_set = 1, binding = 1, storage_buffer)] electric_potential: &mut [f32],
 ) {
@@ -99,19 +118,14 @@ pub fn electric_potential_cs(
     for charge in 0..constants.num_charges {
         let charge = charges[charge as usize];
         let charge_pos = charge.position;
-        // since not centered js remove the centering hjere aswell
         let charge_coords = Vec2::new(charge_pos[0], charge_pos[1]);
 
         let q = charge.charge * constants.electric_options.charge_strength_scale;
-        // Forgot to square this aswell, for the softening factor to work
         let r_sq = (current_coords - charge_coords).length_squared();
-        // Usually potential is q / r, however for simulation purposes so that test charges dont
-        // explode, we will use q / sqrt(r^2 + epsilon^2)
         potential += q / (r_sq + EPSILON_SQ).sqrt();
     }
 
     let final_potential = potential * k;
-
     electric_potential[index] = final_potential;
 }
 
@@ -122,10 +136,6 @@ pub fn electric_field_cs(
     #[spirv(descriptor_set = 1, binding = 1, storage_buffer)] electric_potential: &mut [f32],
     #[spirv(descriptor_set = 1, binding = 2, storage_buffer)] electric_field: &mut [Field],
 ) {
-    // Method of central differences to get gradient at any single point.
-    // f'(x) = (f(x+h) - f(x-h)) / 2h
-    // Then by applying coulombs law, we know that 𝐄⃗=-∇⃗φ
-    // E = -< ∂φ / ∂x, ∂φ / ∂y>
     let x = global_invocation_id.x as i32;
     let y = global_invocation_id.y as i32;
     let index = x + y * constants.width as i32;
@@ -134,21 +144,16 @@ pub fn electric_field_cs(
         return;
     }
 
-    // First calculate the coordinates and THEN the indices.
     let left_x = (x - H).max(0);
     let right_x = (x + H).min(constants.width as i32 - 1);
-
-    // Since we are centered around top left, the `-` will bring us up and `+` will bring us down.
     let up_y = (y - H).max(0);
     let down_y = (y + H).min(constants.height as i32 - 1);
 
     let left_sample = electric_potential[(left_x + y * constants.width as i32) as usize];
     let right_sample = electric_potential[(right_x + y * constants.width as i32) as usize];
-
     let up_sample = electric_potential[(x + up_y * constants.width as i32) as usize];
     let down_sample = electric_potential[(x + down_y * constants.width as i32) as usize];
 
-    // make it signed.
     let d_dx = (right_sample - left_sample) / (2.0 * H as f32);
     let d_dy = (down_sample - up_sample) / (2.0 * H as f32);
 
@@ -160,7 +165,6 @@ pub fn electric_field_cs(
     electric_field[index as usize] = field
 }
 
-// Compute shader for drawing traces, for field lines. We spawn particles around positive charges
 #[spirv(compute(threads(128), entry_point_name = "electric_tracing_cs"))]
 pub fn electric_tracing_cs(
     #[spirv(global_invocation_id)] global_invocation_id: UVec3,
@@ -171,13 +175,10 @@ pub fn electric_tracing_cs(
     let particle_id = global_invocation_id.x as usize;
     let charge_id = particle_id / constants.electric_options.num_particles_per_charge as usize;
 
-    // Extract charge
     let charge = charges[charge_id];
     let center: Vec2 = charge.position.into();
 
-    // Only do positive charges
     if charge.charge < 0.0 {
-        // Set remaining data to last position so we get lines stopping at correct distance.
         for step in 0..constants.electric_options.max_steps {
             let tracing_index =
                 (particle_id as u32 * constants.electric_options.max_steps + step) as usize;
@@ -186,7 +187,6 @@ pub fn electric_tracing_cs(
         return;
     }
 
-    // Calculate the angle offset for each particle to trace around the charge
     let local_offset = {
         let angle_increment =
             (2.0 * PI) / constants.electric_options.num_particles_per_charge as f32;
@@ -197,19 +197,12 @@ pub fn electric_tracing_cs(
 
     let mut current_pos = center + local_offset;
 
-    // Loop through N iterations
     for step in 0..constants.electric_options.max_steps {
         let tracing_index =
             (particle_id as u32 * constants.electric_options.max_steps + step) as usize;
         tracing[tracing_index].pos = current_pos.into();
 
-        //let x = current_pos.x.floor() as i32;
-        //let y = current_pos.y.floor() as i32;
-        //let out_of_bounds =
-        //    x <= 0 || x >= constants.width as i32 || y <= 0 || y >= constants.height as i32;
-
         let mut near_charge = false;
-        // Loop throuhg all charges and check if we are close to any of them
         for i in 0..constants.num_charges {
             let charge_pos = charges[i as usize].position;
             let charge_vec = Vec2::new(charge_pos[0], charge_pos[1]);
@@ -220,24 +213,7 @@ pub fn electric_tracing_cs(
             }
         }
 
-        // Basically if conditions are met, we just set remaining positions to same position
         if near_charge {
-            for remaining in (step + 1)..constants.electric_options.max_steps {
-                let index = (particle_id as u32 * constants.electric_options.max_steps + remaining)
-                    as usize;
-
-                tracing[index].pos = current_pos.into()
-            }
-            break;
-        }
-
-        // Basically, instead of reading from the electric field (which is what was limiting us
-        // before to compute out of bounds, we simply just calculate it on the spot)
-        let scale = constants.electric_options.charge_strength_scale;
-        let h = constants.electric_options.step_size;
-
-        let (k1, k1_strength) = field_dir(current_pos, charges, constants.num_charges, scale);
-        if k1_strength < 1e-6 {
             for remaining in (step + 1)..constants.electric_options.max_steps {
                 let index = (particle_id as u32 * constants.electric_options.max_steps + remaining)
                     as usize;
@@ -246,15 +222,26 @@ pub fn electric_tracing_cs(
             break;
         }
 
-        let mid_pos = current_pos + k1 * (h * 0.5);
-        let (k2, k2_strength) = field_dir(mid_pos, charges, constants.num_charges, scale);
-        let k2 = if k2_strength > 1e-6 { k2 } else { k1 };
+        let dist_to_nearest = nearest_charge_distance(current_pos, charges, constants.num_charges);
 
-        current_pos += k2 * h;
+        let max_step = constants.electric_options.step_size;
+
+        let h_local = if dist_to_nearest < 10.0 {
+            MIN_STEP
+        } else {
+            (dist_to_nearest * DIST_SCALE).clamp(MIN_STEP, max_step)
+        };
+
+        let scale = constants.electric_options.charge_strength_scale;
+
+        let (k1, _k1_strength) = field_dir(current_pos, charges, constants.num_charges, scale);
+        let mid_pos = current_pos + k1 * (h_local * 0.5);
+        let (k2, _k2_strength) = field_dir(mid_pos, charges, constants.num_charges, scale);
+
+        current_pos += k2 * h_local;
     }
 }
 
-// Draw LINES (yes very cool) from P1 to P2, and so on.
 #[spirv(vertex(entry_point_name = "electric_tracing_vs"))]
 pub fn electric_tracing_vs(
     #[spirv(vertex_index)] vtx_id: i32,

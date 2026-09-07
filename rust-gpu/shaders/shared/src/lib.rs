@@ -27,7 +27,7 @@ pub struct ParticleOptions {
     pub time_scale: f32,
     pub particle_radius: f32,
     pub polygon_vertices: u32,
-    pub _pad: f32,
+    pub drag_value: f32,
 }
 
 pub const MAX_PARTICLES: u32 = 262144;
