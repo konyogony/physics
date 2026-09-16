@@ -4,7 +4,7 @@
 
 use core::f32::consts::PI;
 use glam::{UVec3, Vec2, Vec3, Vec4};
-use shaders_shared::{Field, Particle, ShaderConstants};
+use shaders_shared::{Charge, Field, Particle, ShaderConstants};
 #[allow(unused_imports)]
 use spirv_std::num_traits::Float;
 use spirv_std::spirv;
@@ -68,6 +68,8 @@ pub fn particle_cs(
     #[spirv(descriptor_set = 0, binding = 0, storage_buffer)] constants: &ShaderConstants,
     #[spirv(descriptor_set = 1, binding = 0, storage_buffer)] input: &[Particle],
     #[spirv(descriptor_set = 1, binding = 1, storage_buffer)] output: &mut [Particle],
+    // The charge buffer already present in the electric bind group (bind group 2) at binding 0
+    #[spirv(descriptor_set = 2, binding = 0, storage_buffer)] charges: &[Charge],
     #[spirv(descriptor_set = 2, binding = 2, storage_buffer)] electric_field: &mut [Field],
 ) {
     // Extract the index using the invocation id
@@ -78,10 +80,32 @@ pub fn particle_cs(
         let px = particle.position[0] as i32;
         let py = particle.position[1] as i32;
         let index = (px as u32 + py as u32 * constants.width) as usize;
+        // If off-screen, freeze
         if px < 0 || py < 0 || px >= constants.width as i32 || py >= constants.height as i32 {
             output[particle_index] = particle;
             return;
         }
+
+        let current_pos = Vec2::new(px as f32, py as f32);
+
+        // If near charge, freeze
+        // copied code from electric shader... Dont know how much this well affect perforamance..
+        let mut near_charge = false;
+        for i in 0..constants.num_charges {
+            let charge_pos = charges[i as usize].position;
+            let charge_vec = Vec2::new(charge_pos[0], charge_pos[1]);
+            let distance = (charge_vec - current_pos).length();
+            if distance <= constants.electric_options.stop_distance {
+                near_charge = true;
+                break;
+            }
+        }
+
+        if near_charge {
+            output[particle_index] = particle;
+            return;
+        }
+
         // Calculate the velocity of the particle at its specific point in space & time.
         let mut velocity = electric_field[index].field;
         let damping = 1.0 - constants.particle_options.drag_value;

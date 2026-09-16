@@ -142,6 +142,7 @@ impl ParticlePipeline {
         }
 
         cpass.set_bind_group(2, &electric_bind_groups.electric, &[]);
+        cpass.set_bind_group(3, &electric_bind_groups.electric, &[]);
         cpass.dispatch_workgroups(num_particles.div_ceil(256), 1, 1);
         self.out_is_buffer_a = !self.out_is_buffer_a;
     }
