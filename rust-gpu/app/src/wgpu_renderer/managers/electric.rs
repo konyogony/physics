@@ -1,7 +1,7 @@
 #![allow(clippy::too_many_arguments)]
-use crate::wgpu_renderer::bind_group::{
-    ElectricBindGroups, ElectricStorageBuffers, GlobalBindGroupLayout,
-};
+use crate::wgpu_renderer::bind_groups::GlobalBindGroupLayout;
+use crate::wgpu_renderer::bind_groups::electric::ElectricBindGroups;
+use crate::wgpu_renderer::bind_groups::electric::ElectricStorageBuffers;
 use shaders_shared::Charge;
 use shaders_shared::MAX_CHARGES;
 use shaders_shared::MAX_PLATES;
@@ -40,7 +40,7 @@ impl ElectricManager {
         let charges_buffer_size = (std::mem::size_of::<Charge>() * MAX_CHARGES as usize) as u64;
         let plates_buffer_size = (std::mem::size_of::<Plate>() * MAX_PLATES as usize) as u64;
 
-        let electric_storage_buffers = global_bind_group_layout.create_electric_buffers(
+        let electric_storage_buffers = global_bind_group_layout.electric.create_electric_buffers(
             device,
             size,
             queue,
@@ -51,8 +51,9 @@ impl ElectricManager {
             max_steps,
             num_particles_per_charge,
         );
-        let electric_bind_groups =
-            global_bind_group_layout.create_electric_bind_groups(device, &electric_storage_buffers);
+        let electric_bind_groups = global_bind_group_layout
+            .electric
+            .create_electric_bind_groups(device, &electric_storage_buffers);
 
         Self {
             plates: initial_plates,
@@ -92,7 +93,7 @@ impl ElectricManager {
             charge.position[1] *= height_transform;
         }
 
-        self.electric_storage_buffers = global_bind_group_layout.create_electric_buffers(
+        self.electric_storage_buffers = global_bind_group_layout.electric.create_electric_buffers(
             device,
             new_size,
             queue,
@@ -104,6 +105,7 @@ impl ElectricManager {
             num_particles_per_charge,
         );
         self.electric_bind_groups = global_bind_group_layout
+            .electric
             .create_electric_bind_groups(device, &self.electric_storage_buffers);
         self.size = new_size;
         self.max_steps = max_steps;

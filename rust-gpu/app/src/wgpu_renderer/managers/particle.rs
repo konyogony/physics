@@ -1,5 +1,6 @@
-use crate::wgpu_renderer::bind_group::{
-    GlobalBindGroupLayout, ParticleBindGroups, ParticleBuffers,
+use crate::wgpu_renderer::bind_groups::{
+    GlobalBindGroupLayout,
+    particle::{ParticleBindGroups, ParticleBuffers},
 };
 use shaders_shared::{MAX_PARTICLES, Particle};
 use wgpu::{BufferDescriptor, BufferUsages, CommandEncoderDescriptor, Device, MapMode, Queue};
@@ -15,9 +16,12 @@ impl ParticleManager {
     pub fn new(device: &Device, global_bind_group_layout: &GlobalBindGroupLayout) -> Self {
         let size = (MAX_PARTICLES as usize * std::mem::size_of::<Particle>()) as u64;
 
-        let particle_buffers = global_bind_group_layout.create_particle_buffers(device, size);
-        let particle_bind_groups =
-            global_bind_group_layout.create_particle_bind_groups(device, &particle_buffers);
+        let particle_buffers = global_bind_group_layout
+            .particles
+            .create_particle_buffers(device, size);
+        let particle_bind_groups = global_bind_group_layout
+            .particles
+            .create_particle_bind_groups(device, &particle_buffers);
 
         // although buffer code doenst really belong here, we js create like an empty buffer to
         // stage and store some data

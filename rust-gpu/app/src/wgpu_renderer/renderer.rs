@@ -1,5 +1,5 @@
 #![allow(clippy::too_many_arguments)]
-use crate::wgpu_renderer::bind_group::GlobalBindGroupLayout;
+use crate::wgpu_renderer::bind_groups::GlobalBindGroupLayout;
 use crate::wgpu_renderer::managers::electric::ElectricManager;
 use crate::wgpu_renderer::managers::particle::ParticleManager;
 use crate::wgpu_renderer::pipelines::electric::ElectricPipeline;
@@ -99,10 +99,12 @@ impl Renderer {
         // TODO: Make this not re-create itself 1000 times.
         let constant_buffer = self
             .global_bind_group_layout
+            .constants
             .create_constant_buffers(&self.device, shader_constants);
 
         let constant_bind_groups = self
             .global_bind_group_layout
+            .constants
             .create_constant_bind_groups(&self.device, &constant_buffer);
 
         // Create a command encoder, responsible for drawing the stuff
@@ -119,11 +121,14 @@ impl Renderer {
             timestamp_writes: None,
         });
 
+        // HELPPP
+        let pass_index = 0;
         self.electric_pipeline.compute_potential(
             &mut cpass,
             &constant_bind_groups,
             &self.electric_manager.electric_bind_groups,
             self.electric_manager.size,
+            pass_index,
         );
         drop(cpass);
 

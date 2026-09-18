@@ -1,5 +1,5 @@
-use crate::wgpu_renderer::bind_group::{
-    ConstantsBindGroups, ElectricBindGroups, GlobalBindGroupLayout,
+use crate::wgpu_renderer::bind_groups::{
+    GlobalBindGroupLayout, constants::ConstantsBindGroups, electric::ElectricBindGroups,
 };
 use shaders_shared::ShaderConstants;
 use wgpu::{
@@ -29,10 +29,10 @@ impl GridPipeline {
         let layout = device.create_pipeline_layout(&PipelineLayoutDescriptor {
             label: Some("GridPipelineLayout"),
             bind_group_layouts: &[
-                Some(&global_bind_group_layout.constants),
+                Some(&global_bind_group_layout.constants.constants),
                 // Now, we also pass in the electric field. And the buffers are magically linked so
                 // like we can just read from it after the compute pass finished. Cool!
-                Some(&global_bind_group_layout.electric),
+                Some(&global_bind_group_layout.electric.electric),
             ],
             // Have a size of the shader constants.
             immediate_size: size_of::<ShaderConstants>() as u32,
@@ -90,7 +90,8 @@ impl GridPipeline {
         rpass.set_pipeline(&self.render_pipeline);
         // Pass in the bind groups
         rpass.set_bind_group(0, &constants_bind_groups.constants, &[]);
-        rpass.set_bind_group(1, &electric_bind_groups.electric, &[]);
+        // HELP
+        rpass.set_bind_group(1, &electric_bind_groups.electric_compute_ba, &[]);
         // Since we are just looking to cover whole screen, make 3 vertices, 1 draw pass.
         rpass.draw(0..3, 0..1);
     }

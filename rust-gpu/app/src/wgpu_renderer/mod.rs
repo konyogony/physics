@@ -8,7 +8,7 @@ use winit::{
     window::WindowId,
 };
 
-mod bind_group;
+mod bind_groups;
 mod keyboard;
 mod managers;
 mod mouse;

@@ -1,6 +1,3 @@
-use crate::wgpu_renderer::bind_group::{
-    ConstantsBindGroups, ElectricBindGroups, GlobalBindGroupLayout, ParticleBindGroups,
-};
 use shaders_shared::ShaderConstants;
 use wgpu::{
     ColorTargetState, ColorWrites, ComputePass, Device, FragmentState, FrontFace, MultisampleState,
@@ -8,6 +5,11 @@ use wgpu::{
     RenderPipeline, RenderPipelineDescriptor, TextureFormat, VertexState, include_spirv,
 };
 use wgpu::{ComputePipeline, ComputePipelineDescriptor};
+
+use crate::wgpu_renderer::bind_groups::GlobalBindGroupLayout;
+use crate::wgpu_renderer::bind_groups::constants::ConstantsBindGroups;
+use crate::wgpu_renderer::bind_groups::electric::ElectricBindGroups;
+use crate::wgpu_renderer::bind_groups::particle::ParticleBindGroups;
 
 pub struct ParticlePipeline {
     compute_pipeline: ComputePipeline,
@@ -31,8 +33,8 @@ impl ParticlePipeline {
             // Since global bind group layout stores all layouts, we have to pass in the layouts we
             // will actually use.
             bind_group_layouts: &[
-                Some(&global_bind_group_layout.constants),
-                Some(&global_bind_group_layout.particles_render),
+                Some(&global_bind_group_layout.constants.constants),
+                Some(&global_bind_group_layout.particles.particles_render),
             ],
             // Have a size of the shader constants.
             immediate_size: size_of::<ShaderConstants>() as u32,
@@ -41,9 +43,9 @@ impl ParticlePipeline {
         let layout_compute = device.create_pipeline_layout(&PipelineLayoutDescriptor {
             label: Some("ParticleComputePipelineLayout"),
             bind_group_layouts: &[
-                Some(&global_bind_group_layout.constants),
-                Some(&global_bind_group_layout.particles_compute),
-                Some(&global_bind_group_layout.electric),
+                Some(&global_bind_group_layout.constants.constants),
+                Some(&global_bind_group_layout.particles.particles_compute),
+                Some(&global_bind_group_layout.electric.electric),
             ],
             immediate_size: size_of::<ShaderConstants>() as u32,
         });
@@ -141,8 +143,9 @@ impl ParticlePipeline {
             cpass.set_bind_group(1, &particle_bind_groups.particles_compute_ba, &[]);
         }
 
-        cpass.set_bind_group(2, &electric_bind_groups.electric, &[]);
-        cpass.set_bind_group(3, &electric_bind_groups.electric, &[]);
+        // HELP
+        cpass.set_bind_group(2, &electric_bind_groups.electric_compute_ba, &[]);
+        //cpass.set_bind_group(3, &electric_bind_groups.electric, &[]);
         cpass.dispatch_workgroups(num_particles.div_ceil(256), 1, 1);
         self.out_is_buffer_a = !self.out_is_buffer_a;
     }
