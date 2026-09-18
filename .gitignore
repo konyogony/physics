@@ -1,3 +1,6 @@
 /target
 rust-gpu/target/
+blog/node_modules/
+blog/quartz/.quartz-cache/
+blog/public/
 vector-field/target/

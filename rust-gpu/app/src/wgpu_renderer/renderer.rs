@@ -6,7 +6,7 @@ use crate::wgpu_renderer::pipelines::electric::ElectricPipeline;
 use crate::wgpu_renderer::pipelines::grid::GridPipeline;
 use crate::wgpu_renderer::pipelines::particle::ParticlePipeline;
 use crate::wgpu_renderer::ui::manager::UIManager;
-use shaders_shared::{Charge, ShaderConstants};
+use shaders_shared::{Charge, Plate, ShaderConstants};
 use wgpu::wgt::CommandEncoderDescriptor;
 use wgpu::{
     Color, ComputePassDescriptor, Device, LoadOp, Operations, Queue, RenderPassColorAttachment,
@@ -38,7 +38,8 @@ impl Renderer {
         config: SurfaceConfiguration,
         out_format: TextureFormat,
         size: PhysicalSize<u32>,
-        charges_vec: Vec<Charge>,
+        initial_charges: Vec<Charge>,
+        initial_plates: Vec<Plate>,
         max_steps: usize,
         num_particles_per_charge: u32,
     ) -> anyhow::Result<Self> {
@@ -63,7 +64,8 @@ impl Renderer {
             &queue,
             &global_bind_group_layout,
             size,
-            charges_vec,
+            initial_charges,
+            initial_plates,
             max_steps,
             num_particles_per_charge,
         );

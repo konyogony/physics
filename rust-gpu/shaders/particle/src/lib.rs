@@ -70,7 +70,7 @@ pub fn particle_cs(
     #[spirv(descriptor_set = 1, binding = 1, storage_buffer)] output: &mut [Particle],
     // The charge buffer already present in the electric bind group (bind group 2) at binding 0
     #[spirv(descriptor_set = 2, binding = 0, storage_buffer)] charges: &[Charge],
-    #[spirv(descriptor_set = 2, binding = 2, storage_buffer)] electric_field: &mut [Field],
+    #[spirv(descriptor_set = 2, binding = 3, storage_buffer)] electric_field: &mut [Field],
 ) {
     // Extract the index using the invocation id
     let particle_index = global_invocation_id.x as usize;

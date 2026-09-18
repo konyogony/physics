@@ -4,7 +4,7 @@
 
 use core::f32::consts::PI;
 use glam::{UVec3, Vec2, Vec3, Vec4};
-use shaders_shared::{Charge, EPSILON_SQ, Field, H, ShaderConstants, TracePoint};
+use shaders_shared::{Charge, EPSILON_SQ, Field, H, Plate, ShaderConstants, TracePoint};
 #[allow(unused_imports)]
 use spirv_std::num_traits::Float;
 use spirv_std::spirv;
@@ -49,6 +49,40 @@ fn nearest_charge_distance(pos: Vec2, charges: &[Charge], num_charges: u32) -> f
         }
     }
     min_dist
+}
+
+fn is_inside(point: [f32; 2], verticies: [f32; 8]) -> bool {
+    let mut sign: i32 = 0;
+    let len = verticies.len();
+
+    let p_x = point[0];
+    let p_y = point[1];
+
+    for i in 0..4 {
+        let idx = i * 2;
+
+        let a_x = verticies[idx % len];
+        let a_y = verticies[(idx + 1) % len];
+
+        let b_x = verticies[(idx + 2) % len];
+        let b_y = verticies[(idx + 3) % len];
+
+        let cross = (b_x - a_x) * (p_y - a_y) - (b_y - a_y) * (p_x - a_x);
+
+        if cross > 0.0 {
+            if sign == -1 {
+                return false;
+            }
+            sign = 1;
+        } else if cross < 0.0 {
+            if sign == 1 {
+                return false;
+            }
+            sign = -1;
+        }
+    }
+
+    true
 }
 
 // EXACT SAME CODE AS IN PARTICLE, JUST ADAPTED FOR CHARGES NOW
@@ -101,7 +135,8 @@ pub fn electric_potential_cs(
     #[spirv(global_invocation_id)] global_invocation_id: UVec3,
     #[spirv(descriptor_set = 0, binding = 0, storage_buffer)] constants: &ShaderConstants,
     #[spirv(descriptor_set = 1, binding = 0, storage_buffer)] charges: &[Charge],
-    #[spirv(descriptor_set = 1, binding = 1, storage_buffer)] electric_potential: &mut [f32],
+    #[spirv(descriptor_set = 1, binding = 1, storage_buffer)] plates: &[Plate],
+    #[spirv(descriptor_set = 1, binding = 2, storage_buffer)] electric_potential: &mut [f32],
 ) {
     let x = global_invocation_id.x as usize;
     let y = global_invocation_id.y as usize;
@@ -113,6 +148,15 @@ pub fn electric_potential_cs(
 
     let current_coords = Vec2::new(x as f32, y as f32);
     let mut potential = 0.0;
+
+    for plate_idx in 0..constants.num_plates {
+        let plate = plates[plate_idx as usize];
+        if is_inside([current_coords.x, current_coords.y], plate.edges) {
+            potential += plate.charge
+        } else {
+            // We gotta first set it to 0.0, then blur and average out through time
+        }
+    }
 
     let k = 1.0 / (4.0 * PI * constants.epsilon_naught);
     for charge in 0..constants.num_charges {
@@ -133,8 +177,8 @@ pub fn electric_potential_cs(
 pub fn electric_field_cs(
     #[spirv(global_invocation_id)] global_invocation_id: UVec3,
     #[spirv(descriptor_set = 0, binding = 0, storage_buffer)] constants: &ShaderConstants,
-    #[spirv(descriptor_set = 1, binding = 1, storage_buffer)] electric_potential: &mut [f32],
-    #[spirv(descriptor_set = 1, binding = 2, storage_buffer)] electric_field: &mut [Field],
+    #[spirv(descriptor_set = 1, binding = 2, storage_buffer)] electric_potential: &mut [f32],
+    #[spirv(descriptor_set = 1, binding = 3, storage_buffer)] electric_field: &mut [Field],
 ) {
     let x = global_invocation_id.x as i32;
     let y = global_invocation_id.y as i32;
@@ -170,7 +214,7 @@ pub fn electric_tracing_cs(
     #[spirv(global_invocation_id)] global_invocation_id: UVec3,
     #[spirv(descriptor_set = 0, binding = 0, storage_buffer)] constants: &ShaderConstants,
     #[spirv(descriptor_set = 1, binding = 0, storage_buffer)] charges: &[Charge],
-    #[spirv(descriptor_set = 1, binding = 3, storage_buffer)] tracing: &mut [TracePoint],
+    #[spirv(descriptor_set = 1, binding = 4, storage_buffer)] tracing: &mut [TracePoint],
 ) {
     let particle_id = global_invocation_id.x as usize;
     let charge_id = particle_id / constants.electric_options.num_particles_per_charge as usize;
@@ -248,7 +292,7 @@ pub fn electric_tracing_vs(
     #[spirv(instance_index)] instance_id: i32,
     #[spirv(position)] vtx_pos: &mut Vec4,
     #[spirv(descriptor_set = 0, binding = 0, storage_buffer)] constants: &ShaderConstants,
-    #[spirv(descriptor_set = 1, binding = 3, storage_buffer)] tracing: &mut [TracePoint],
+    #[spirv(descriptor_set = 1, binding = 4, storage_buffer)] tracing: &mut [TracePoint],
 ) {
     if constants.draw_options.draw_field_lines == 0 {
         return;

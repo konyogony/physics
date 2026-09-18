@@ -4,7 +4,9 @@ use crate::wgpu_renderer::swapchain::SwapchainManager;
 use crate::wgpu_renderer::ui::manager::CurrentTool;
 use crate::wgpu_renderer::{keyboard::Keyboard, mouse::Mouse};
 use anyhow::Context;
-use shaders_shared::{Charge, DrawOptions, ElectricOptions, ParticleOptions, ShaderConstants};
+use shaders_shared::{
+    Charge, DrawOptions, ElectricOptions, ParticleOptions, Plate, ShaderConstants,
+};
 use std::sync::Arc;
 use std::time::Instant;
 use winit::{
@@ -91,7 +93,7 @@ impl State {
         let config = swapchain.get_config().unwrap();
         let format = swapchain.get_format();
 
-        let charges = vec![
+        let initial_charges = vec![
             Charge {
                 position: [size.width as f32 / 2.0 + 200.0, size.height as f32 / 2.0],
                 charge: -1.0,
@@ -104,6 +106,12 @@ impl State {
             },
         ];
 
+        let initial_plates = vec![Plate {
+            edges: [450.0, 20.0, 450.0, 20.0, 450.0, 20.0, 450.0, 20.0],
+            charge: 5.0,
+            pad: [0.0, 0.0, 0.0],
+        }];
+
         // Create a renderer
         let renderer = Renderer::new(
             &window,
@@ -112,7 +120,8 @@ impl State {
             config,
             format,
             size,
-            charges,
+            initial_charges,
+            initial_plates,
             DEFAULT_MAX_STEPS,
             DEFAULT_NUM_PARTICLES_PER_CHARGE,
         )?;
@@ -434,8 +443,9 @@ impl State {
                     //epsilon_naught: ((8.9_f32).powi(-12)),
                     epsilon_naught: ((8.9_f32).powi(-8)),
                     num_charges: self.renderer.electric_manager.charges.len() as u32,
+                    num_plates: self.renderer.electric_manager.plates.len() as u32,
                     color_value: self.renderer.ui_manager.committed_input_values.color_value,
-                    _pad1: [0.0; 2],
+                    _pad1: [0.0; 1],
                     draw_options: DrawOptions::from(
                         &self.renderer.ui_manager.committed_input_values,
                     ),

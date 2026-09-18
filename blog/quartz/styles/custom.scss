@@ -58,7 +58,6 @@ html[saved-theme="light"] .invert-on-light {
   filter: invert(1) hue-rotate(180deg);
 }
 
-
 svg>g {
   fill: currentColor;
 }
@@ -68,4 +67,48 @@ svg>g {
   margin: 1.5em 0;
   text-align: center;
   fill: currentColor;
+}
+
+article {
+  max-width: 100% !important;
+  width: 100% !important;
+  font-family: Georgia, serif !important;
+  text-align: justify;
+  text-justify: inter-word;
+  font-size: 1.06rem;
+  line-height: 1.6;
+
+  p img {
+    display: block;
+    margin: 1.5rem auto;
+    max-width: 100%;
+  }
+
+  .svg-container {
+    display: flex !important;
+    justify-content: center !important;
+    align-items: center !important;
+    width: 100% !important;
+    margin: 1.5rem 0 !important;
+
+    img,
+    svg {
+      display: block !important;
+      margin: 0 auto !important;
+      max-width: 100% !important;
+      height: auto !important;
+    }
+  }
+}
+
+p {
+  hyphens: auto;
+  -webkit-hyphens: auto;
+  -ms-hyphens: auto;
+}
+
+span.math.inline,
+.katex {
+  text-align: left;
+  white-space: nowrap;
 }

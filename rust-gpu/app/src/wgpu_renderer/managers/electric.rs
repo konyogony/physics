@@ -4,19 +4,26 @@ use crate::wgpu_renderer::bind_group::{
 };
 use shaders_shared::Charge;
 use shaders_shared::MAX_CHARGES;
+use shaders_shared::MAX_PLATES;
+use shaders_shared::Plate;
 use wgpu::Device;
 use wgpu::Queue;
 use winit::dpi::PhysicalSize;
 
 pub struct ElectricManager {
+    // plate
+    pub plates: Vec<Plate>,
+    pub plates_buffer_size: u64,
+    // charge
     pub charges: Vec<Charge>,
+    pub charges_buffer_size: u64,
+    pub max_steps: usize,
+    pub next_charge: f32,
+    pub num_particles_per_charge: u32,
+    // Shared
     pub electric_storage_buffers: ElectricStorageBuffers,
     pub electric_bind_groups: ElectricBindGroups,
     pub size: PhysicalSize<u32>,
-    pub buffer_size: u64,
-    pub next_charge: f32,
-    pub num_particles_per_charge: u32,
-    pub max_steps: usize,
 }
 
 impl ElectricManager {
@@ -25,17 +32,22 @@ impl ElectricManager {
         queue: &Queue,
         global_bind_group_layout: &GlobalBindGroupLayout,
         size: PhysicalSize<u32>,
-        charges: Vec<Charge>,
+        initial_charges: Vec<Charge>,
+        initial_plates: Vec<Plate>,
         max_steps: usize,
         num_particles_per_charge: u32,
     ) -> Self {
-        let buffer_size = (std::mem::size_of::<Charge>() * MAX_CHARGES as usize) as u64;
+        let charges_buffer_size = (std::mem::size_of::<Charge>() * MAX_CHARGES as usize) as u64;
+        let plates_buffer_size = (std::mem::size_of::<Plate>() * MAX_PLATES as usize) as u64;
+
         let electric_storage_buffers = global_bind_group_layout.create_electric_buffers(
             device,
             size,
             queue,
-            buffer_size,
-            charges.clone(),
+            charges_buffer_size,
+            plates_buffer_size,
+            initial_charges.clone(),
+            initial_plates.clone(),
             max_steps,
             num_particles_per_charge,
         );
@@ -43,14 +55,16 @@ impl ElectricManager {
             global_bind_group_layout.create_electric_bind_groups(device, &electric_storage_buffers);
 
         Self {
+            plates: initial_plates,
+            plates_buffer_size,
+            charges: initial_charges,
+            charges_buffer_size,
+            max_steps,
+            next_charge: 1.0,
+            num_particles_per_charge,
             electric_bind_groups,
             electric_storage_buffers,
             size,
-            charges,
-            buffer_size,
-            next_charge: 1.0,
-            max_steps,
-            num_particles_per_charge,
         }
     }
 
@@ -82,8 +96,10 @@ impl ElectricManager {
             device,
             new_size,
             queue,
-            self.buffer_size,
+            self.charges_buffer_size,
+            self.plates_buffer_size,
             self.charges.clone(),
+            self.plates.clone(),
             max_steps,
             num_particles_per_charge,
         );

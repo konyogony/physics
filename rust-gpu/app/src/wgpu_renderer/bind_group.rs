@@ -1,4 +1,4 @@
-use shaders_shared::{Charge, Field, MAX_CHARGES, ShaderConstants, TracePoint};
+use shaders_shared::{Charge, Field, MAX_CHARGES, Plate, ShaderConstants, TracePoint};
 use wgpu::{
     BindGroup, BindGroupDescriptor, BindGroupEntry, BindGroupLayout, BindGroupLayoutDescriptor,
     BindGroupLayoutEntry, BindingResource, BindingType, Buffer, BufferBinding, BufferBindingType,
@@ -59,6 +59,7 @@ pub struct ParticleBindGroups {
 #[derive(Debug, Clone)]
 pub struct ElectricStorageBuffers {
     pub charges: Buffer,
+    pub plates: Buffer,
     pub potential: Buffer,
     pub field: Buffer,
     pub tracing: Buffer,
@@ -145,18 +146,18 @@ impl GlobalBindGroupLayout {
                     },
                     count: None,
                 },
-                // Potential
+                // Plates list.
                 BindGroupLayoutEntry {
                     binding: 1,
                     visibility: ShaderStages::COMPUTE | ShaderStages::VERTEX_FRAGMENT,
                     ty: BindingType::Buffer {
-                        ty: BufferBindingType::Storage { read_only: false },
+                        ty: BufferBindingType::Storage { read_only: true },
                         has_dynamic_offset: false,
                         min_binding_size: None,
                     },
                     count: None,
                 },
-                // Field
+                // Potential
                 BindGroupLayoutEntry {
                     binding: 2,
                     visibility: ShaderStages::COMPUTE | ShaderStages::VERTEX_FRAGMENT,
@@ -167,9 +168,20 @@ impl GlobalBindGroupLayout {
                     },
                     count: None,
                 },
-                // Tracing
+                // Field
                 BindGroupLayoutEntry {
                     binding: 3,
+                    visibility: ShaderStages::COMPUTE | ShaderStages::VERTEX_FRAGMENT,
+                    ty: BindingType::Buffer {
+                        ty: BufferBindingType::Storage { read_only: false },
+                        has_dynamic_offset: false,
+                        min_binding_size: None,
+                    },
+                    count: None,
+                },
+                // Tracing
+                BindGroupLayoutEntry {
+                    binding: 4,
                     visibility: ShaderStages::COMPUTE | ShaderStages::VERTEX_FRAGMENT,
                     ty: BindingType::Buffer {
                         ty: BufferBindingType::Storage { read_only: false },
@@ -358,9 +370,9 @@ impl GlobalBindGroupLayout {
                     }),
                 },
                 BindGroupEntry {
-                    binding: 1,
+                    binding: 0,
                     resource: BindingResource::Buffer(BufferBinding {
-                        buffer: &electric_storage_buffers.potential,
+                        buffer: &electric_storage_buffers.plates,
                         offset: 0,
                         size: None,
                     }),
@@ -368,13 +380,21 @@ impl GlobalBindGroupLayout {
                 BindGroupEntry {
                     binding: 2,
                     resource: BindingResource::Buffer(BufferBinding {
-                        buffer: &electric_storage_buffers.field,
+                        buffer: &electric_storage_buffers.potential,
                         offset: 0,
                         size: None,
                     }),
                 },
                 BindGroupEntry {
                     binding: 3,
+                    resource: BindingResource::Buffer(BufferBinding {
+                        buffer: &electric_storage_buffers.field,
+                        offset: 0,
+                        size: None,
+                    }),
+                },
+                BindGroupEntry {
+                    binding: 4,
                     resource: BindingResource::Buffer(BufferBinding {
                         buffer: &electric_storage_buffers.tracing,
                         offset: 0,
@@ -392,8 +412,10 @@ impl GlobalBindGroupLayout {
         device: &Device,
         size: PhysicalSize<u32>,
         queue: &Queue,
-        buffer_size: u64,
+        charges_buffer_size: u64,
+        plates_buffer_size: u64,
         charges_vec: Vec<Charge>,
+        plates_vec: Vec<Plate>,
         max_steps: usize,
         num_particles_per_charge: u32,
     ) -> ElectricStorageBuffers {
@@ -404,11 +426,20 @@ impl GlobalBindGroupLayout {
         let charges = device.create_buffer(&BufferDescriptor {
             label: Some("ChargeBuffer"),
             usage: BufferUsages::COPY_DST | BufferUsages::STORAGE,
-            size: buffer_size,
+            size: charges_buffer_size,
             mapped_at_creation: false,
         });
 
         queue.write_buffer(&charges, 0, bytemuck::cast_slice(&charges_vec));
+
+        let plates = device.create_buffer(&BufferDescriptor {
+            label: Some("PlatesBuffer"),
+            usage: BufferUsages::COPY_DST | BufferUsages::STORAGE,
+            size: plates_buffer_size,
+            mapped_at_creation: false,
+        });
+
+        queue.write_buffer(&plates, 0, bytemuck::cast_slice(&plates_vec));
 
         let potential = device.create_buffer(&BufferDescriptor {
             label: Some("PotentialBuffer"),
@@ -433,6 +464,7 @@ impl GlobalBindGroupLayout {
 
         ElectricStorageBuffers {
             charges,
+            plates,
             potential,
             field,
             tracing,

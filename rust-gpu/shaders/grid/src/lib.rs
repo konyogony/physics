@@ -33,8 +33,8 @@ pub fn grid_vs(#[spirv(vertex_index)] vert_id: i32, #[spirv(position)] vtx_pos: 
 #[spirv(fragment(entry_point_name = "grid_fs"))]
 pub fn grid_fs(
     #[spirv(descriptor_set = 0, binding = 0, storage_buffer)] constants: &ShaderConstants,
-    #[spirv(descriptor_set = 1, binding = 1, storage_buffer)] potential_field: &mut [f32],
-    #[spirv(descriptor_set = 1, binding = 2, storage_buffer)] electric_field: &mut [Field],
+    #[spirv(descriptor_set = 1, binding = 2, storage_buffer)] potential_field: &mut [f32],
+    #[spirv(descriptor_set = 1, binding = 3, storage_buffer)] electric_field: &mut [Field],
     #[spirv(frag_coord)] frag_coords: Vec4,
     output: &mut Vec4,
 ) {

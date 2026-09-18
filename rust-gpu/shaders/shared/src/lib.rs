@@ -36,8 +36,17 @@ pub const MAX_PARTICLES: u32 = 262144;
 // Softening factor
 pub const EPSILON_SQ: f32 = 1.0;
 pub const MAX_CHARGES: u32 = 100;
+pub const MAX_PLATES: u32 = 10;
 pub const DV: f32 = 1.0;
 pub const H: i32 = 1;
+
+#[derive(Debug, Clone, Copy, Zeroable, Pod)]
+#[repr(C)]
+pub struct Plate {
+    pub edges: [f32; 8],
+    pub charge: f32,
+    pub pad: [f32; 3],
+}
 
 #[derive(Debug, Clone, Copy, Zeroable, Pod)]
 #[repr(C)]
@@ -103,8 +112,9 @@ pub struct ShaderConstants {
     pub num_particles: u32,
     pub epsilon_naught: f32,
     pub num_charges: u32,
+    pub num_plates: u32,
     pub color_value: f32,
-    pub _pad1: [f32; 2],
+    pub _pad1: [f32; 1],
     pub draw_options: DrawOptions,
     pub particle_options: ParticleOptions,
     pub electric_options: ElectricOptions,
