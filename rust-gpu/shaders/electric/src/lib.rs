@@ -1,319 +1,106 @@
 #![no_std]
-// Seperate shader for the particles
 #![allow(clippy::too_many_arguments)]
-
+#![allow(unused_imports)]
 use core::f32::consts::PI;
 use glam::{UVec3, Vec2, Vec3, Vec4};
 use shaders_shared::{Charge, EPSILON_SQ, Field, H, Plate, ShaderConstants, TracePoint};
-#[allow(unused_imports)]
 use spirv_std::num_traits::Float;
 use spirv_std::spirv;
 
-const MIN_FIELD_STRENGTH: f32 = 1e-4;
-const MIN_STEP: f32 = 0.5;
-const DIST_SCALE: f32 = 0.05;
+pub mod compute;
+pub mod fragment;
+pub mod vertex;
 
-fn field_dir(pos: Vec2, charges: &[Charge], num_charges: u32, scale: f32) -> (Vec2, f32) {
-    let mut vel = Vec2::ZERO;
-    for i in 0..num_charges {
-        let c = charges[i as usize];
-        let c_pos = Vec2::new(c.position[0], c.position[1]);
-        let q = c.charge * scale;
-        let r = pos - c_pos;
-        let r_sq_eps = r.length_squared() + EPSILON_SQ;
-        let denom = r_sq_eps * r_sq_eps.sqrt();
-        vel += q * r / denom;
-    }
-    let strength = vel.length();
+pub const MIN_FIELD_STRENGTH: f32 = 1e-4;
+pub const EPSILON: f32 = 1e-5;
+pub const MIN_STEP: f32 = 0.5;
+pub const DIST_SCALE: f32 = 0.05;
 
-    let clamped_strength = strength.max(MIN_FIELD_STRENGTH);
-    let dir = if clamped_strength > 1e-8 {
-        vel / clamped_strength
-    } else {
-        Vec2::X
-    };
-
-    (dir, strength)
+#[repr(u32)]
+#[derive(Copy, Clone, PartialEq, Eq)]
+pub enum Condition {
+    Inside = 0,
+    Outside = 1,
+    Boundary = 2,
 }
 
-fn nearest_charge_distance(pos: Vec2, charges: &[Charge], num_charges: u32) -> f32 {
-    let mut min_dist = f32::MAX;
-    for i in 0..num_charges {
-        let c_pos = Vec2::new(
-            charges[i as usize].position[0],
-            charges[i as usize].position[1],
-        );
-        let d = (pos - c_pos).length();
-        if d < min_dist {
-            min_dist = d;
-        }
-    }
-    min_dist
-}
-
-fn is_inside(point: [f32; 2], verticies: [f32; 8]) -> bool {
+pub fn is_inside(point: Vec2, vertices: [Vec2; 4]) -> Condition {
     let mut sign: i32 = 0;
-    let len = verticies.len();
-
-    let p_x = point[0];
-    let p_y = point[1];
+    let mut on_boundary = false;
+    const EPSILON: f32 = 1e-5;
 
     for i in 0..4 {
-        let idx = i * 2;
+        let a = vertices[i];
+        let b = vertices[(i + 1) % 4];
 
-        let a_x = verticies[idx % len];
-        let a_y = verticies[(idx + 1) % len];
+        let edge = b - a;
+        let to_p = point - a;
+        // turns out theres a better method
+        let cross = edge.perp_dot(to_p);
 
-        let b_x = verticies[(idx + 2) % len];
-        let b_y = verticies[(idx + 3) % len];
-
-        let cross = (b_x - a_x) * (p_y - a_y) - (b_y - a_y) * (p_x - a_x);
-
-        if cross > 0.0 {
+        // use epsilon, since we cant get true 0.0 value if on boundary (floating point inaccuracy)
+        if cross.abs() < EPSILON {
+            on_boundary = true;
+        } else if cross > 0.0 {
             if sign == -1 {
-                return false;
+                return Condition::Outside;
             }
             sign = 1;
-        } else if cross < 0.0 {
+        } else {
             if sign == 1 {
-                return false;
+                return Condition::Outside;
             }
             sign = -1;
         }
     }
 
-    true
+    if on_boundary {
+        Condition::Boundary
+    } else {
+        Condition::Inside
+    }
 }
 
-// EXACT SAME CODE AS IN PARTICLE, JUST ADAPTED FOR CHARGES NOW
-#[spirv(vertex(entry_point_name = "electric_vs"))]
-pub fn electric_vs(
-    #[spirv(vertex_index)] vtx_id: i32,
-    #[spirv(instance_index)] instance_id: i32,
-    #[spirv(position)] vtx_pos: &mut Vec4,
-    #[spirv(descriptor_set = 0, binding = 0, storage_buffer)] constants: &ShaderConstants,
-    #[spirv(descriptor_set = 1, binding = 0, storage_buffer)] charges: &[Charge],
-    #[spirv(location = 0)] vtx_color: &mut Vec3,
-) {
-    let charge = charges[instance_id as usize];
-    let center: Vec2 = charge.position.into();
+pub fn fill_from(tracing: &mut [TracePoint], pid: usize, from: u32, max: u32, pos: Vec2) {
+    for s in from..max {
+        tracing[(pid as u32 * max + s) as usize].pos = pos.into();
+    }
+}
 
-    let num_segments = constants.particle_options.polygon_vertices / 3;
-    let triangle_id = vtx_id / 3;
-    let corner_id = vtx_id % 3;
+// trust me i did not do this function, I hate bilinear interpolation
+pub fn sample_field_bilinear(
+    pos: Vec2,
+    field: &[Field],
+    width: usize,
+    height: usize,
+) -> (Vec2, f32) {
+    if pos.x < 0.0 || pos.x >= (width - 1) as f32 || pos.y < 0.0 || pos.y >= (height - 1) as f32 {
+        return (Vec2::ZERO, 0.0);
+    }
 
-    let local_offset = if corner_id == 0 {
+    let x0 = pos.x.floor() as usize;
+    let y0 = pos.y.floor() as usize;
+    let x1 = x0 + 1;
+    let y1 = y0 + 1;
+
+    let fx = pos.x - x0 as f32;
+    let fy = pos.y - y0 as f32;
+
+    let f00 = Vec2::from(field[x0 + y0 * width].field);
+    let f10 = Vec2::from(field[x1 + y0 * width].field);
+    let f01 = Vec2::from(field[x0 + y1 * width].field);
+    let f11 = Vec2::from(field[x1 + y1 * width].field);
+
+    let top = f00.lerp(f10, fx);
+    let bottom = f01.lerp(f11, fx);
+    let e = top.lerp(bottom, fy);
+
+    let strength = e.length();
+    let dir = if strength > 1e-6 {
+        e / strength
+    } else {
         Vec2::ZERO
-    } else {
-        let angle_increment = (2.0 * PI) / num_segments as f32;
-        let angle_offset = (triangle_id as f32 + (corner_id - 1) as f32) * angle_increment;
-        let radius = constants.electric_options.charge_radius;
-        Vec2::new(radius * angle_offset.cos(), radius * angle_offset.sin())
     };
 
-    let pos_px = center + local_offset;
-    let pos_uv = Vec2::new(
-        (pos_px.x / constants.width as f32) * 2.0 - 1.0,
-        (pos_px.y / constants.height as f32) * -2.0 + 1.0,
-    );
-
-    *vtx_pos = pos_uv.extend(0.0).extend(1.0);
-    if charge.charge < 0.0 {
-        *vtx_color = Vec3::new(0.0, 1.0, 1.0);
-    } else {
-        *vtx_color = Vec3::new(1.0, 0.5, 0.0);
-    }
-}
-
-#[spirv(fragment(entry_point_name = "electric_fs"))]
-pub fn electric_fs(#[spirv(location = 0)] vtx_color: Vec3, output: &mut Vec4) {
-    *output = vtx_color.extend(1.0);
-}
-
-#[spirv(compute(threads(16, 16), entry_point_name = "electric_potential_cs"))]
-pub fn electric_potential_cs(
-    #[spirv(global_invocation_id)] global_invocation_id: UVec3,
-    #[spirv(descriptor_set = 0, binding = 0, storage_buffer)] constants: &ShaderConstants,
-    #[spirv(descriptor_set = 1, binding = 0, storage_buffer)] charges: &[Charge],
-    #[spirv(descriptor_set = 1, binding = 1, storage_buffer)] plates: &[Plate],
-    #[spirv(descriptor_set = 1, binding = 2, storage_buffer)] electric_potential: &mut [f32],
-) {
-    let x = global_invocation_id.x as usize;
-    let y = global_invocation_id.y as usize;
-    let index = x + y * constants.width as usize;
-
-    if x >= constants.width as usize || y >= constants.height as usize {
-        return;
-    }
-
-    let current_coords = Vec2::new(x as f32, y as f32);
-    let mut potential = 0.0;
-
-    for plate_idx in 0..constants.num_plates {
-        let plate = plates[plate_idx as usize];
-        if is_inside([current_coords.x, current_coords.y], plate.edges) {
-            potential += plate.charge
-        } else {
-            // We gotta first set it to 0.0, then blur and average out through time
-        }
-    }
-
-    let k = 1.0 / (4.0 * PI * constants.epsilon_naught);
-    for charge in 0..constants.num_charges {
-        let charge = charges[charge as usize];
-        let charge_pos = charge.position;
-        let charge_coords = Vec2::new(charge_pos[0], charge_pos[1]);
-
-        let q = charge.charge * constants.electric_options.charge_strength_scale;
-        let r_sq = (current_coords - charge_coords).length_squared();
-        potential += q / (r_sq + EPSILON_SQ).sqrt();
-    }
-
-    let final_potential = potential * k;
-    electric_potential[index] = final_potential;
-}
-
-#[spirv(compute(threads(16, 16), entry_point_name = "electric_field_cs"))]
-pub fn electric_field_cs(
-    #[spirv(global_invocation_id)] global_invocation_id: UVec3,
-    #[spirv(descriptor_set = 0, binding = 0, storage_buffer)] constants: &ShaderConstants,
-    #[spirv(descriptor_set = 1, binding = 2, storage_buffer)] electric_potential: &mut [f32],
-    #[spirv(descriptor_set = 1, binding = 3, storage_buffer)] electric_field: &mut [Field],
-) {
-    let x = global_invocation_id.x as i32;
-    let y = global_invocation_id.y as i32;
-    let index = x + y * constants.width as i32;
-
-    if x >= constants.width as i32 || y >= constants.height as i32 {
-        return;
-    }
-
-    let left_x = (x - H).max(0);
-    let right_x = (x + H).min(constants.width as i32 - 1);
-    let up_y = (y - H).max(0);
-    let down_y = (y + H).min(constants.height as i32 - 1);
-
-    let left_sample = electric_potential[(left_x + y * constants.width as i32) as usize];
-    let right_sample = electric_potential[(right_x + y * constants.width as i32) as usize];
-    let up_sample = electric_potential[(x + up_y * constants.width as i32) as usize];
-    let down_sample = electric_potential[(x + down_y * constants.width as i32) as usize];
-
-    let d_dx = (right_sample - left_sample) / (2.0 * H as f32);
-    let d_dy = (down_sample - up_sample) / (2.0 * H as f32);
-
-    let field = Field {
-        field: [-d_dx, -d_dy],
-        _pad: [0.0; 2],
-    };
-
-    electric_field[index as usize] = field
-}
-
-#[spirv(compute(threads(128), entry_point_name = "electric_tracing_cs"))]
-pub fn electric_tracing_cs(
-    #[spirv(global_invocation_id)] global_invocation_id: UVec3,
-    #[spirv(descriptor_set = 0, binding = 0, storage_buffer)] constants: &ShaderConstants,
-    #[spirv(descriptor_set = 1, binding = 0, storage_buffer)] charges: &[Charge],
-    #[spirv(descriptor_set = 1, binding = 4, storage_buffer)] tracing: &mut [TracePoint],
-) {
-    let particle_id = global_invocation_id.x as usize;
-    let charge_id = particle_id / constants.electric_options.num_particles_per_charge as usize;
-
-    let charge = charges[charge_id];
-    let center: Vec2 = charge.position.into();
-
-    if charge.charge < 0.0 {
-        for step in 0..constants.electric_options.max_steps {
-            let tracing_index =
-                (particle_id as u32 * constants.electric_options.max_steps + step) as usize;
-            tracing[tracing_index].pos = center.into();
-        }
-        return;
-    }
-
-    let local_offset = {
-        let angle_increment =
-            (2.0 * PI) / constants.electric_options.num_particles_per_charge as f32;
-        let angle_offset = (particle_id as f32) * angle_increment;
-        let radius = constants.electric_options.charge_radius;
-        Vec2::new(radius * angle_offset.cos(), radius * angle_offset.sin())
-    };
-
-    let mut current_pos = center + local_offset;
-
-    for step in 0..constants.electric_options.max_steps {
-        let tracing_index =
-            (particle_id as u32 * constants.electric_options.max_steps + step) as usize;
-        tracing[tracing_index].pos = current_pos.into();
-
-        let mut near_charge = false;
-        for i in 0..constants.num_charges {
-            let charge_pos = charges[i as usize].position;
-            let charge_vec = Vec2::new(charge_pos[0], charge_pos[1]);
-            let distance = (charge_vec - current_pos).length();
-            if distance <= constants.electric_options.stop_distance {
-                near_charge = true;
-                break;
-            }
-        }
-
-        if near_charge {
-            for remaining in (step + 1)..constants.electric_options.max_steps {
-                let index = (particle_id as u32 * constants.electric_options.max_steps + remaining)
-                    as usize;
-                tracing[index].pos = current_pos.into();
-            }
-            break;
-        }
-
-        let dist_to_nearest = nearest_charge_distance(current_pos, charges, constants.num_charges);
-
-        let max_step = constants.electric_options.step_size;
-
-        let h_local = if dist_to_nearest < 10.0 {
-            MIN_STEP
-        } else {
-            (dist_to_nearest * DIST_SCALE).clamp(MIN_STEP, max_step)
-        };
-
-        let scale = constants.electric_options.charge_strength_scale;
-
-        let (k1, _k1_strength) = field_dir(current_pos, charges, constants.num_charges, scale);
-        let mid_pos = current_pos + k1 * (h_local * 0.5);
-        let (k2, _k2_strength) = field_dir(mid_pos, charges, constants.num_charges, scale);
-
-        current_pos += k2 * h_local;
-    }
-}
-
-#[spirv(vertex(entry_point_name = "electric_tracing_vs"))]
-pub fn electric_tracing_vs(
-    #[spirv(vertex_index)] vtx_id: i32,
-    #[spirv(instance_index)] instance_id: i32,
-    #[spirv(position)] vtx_pos: &mut Vec4,
-    #[spirv(descriptor_set = 0, binding = 0, storage_buffer)] constants: &ShaderConstants,
-    #[spirv(descriptor_set = 1, binding = 4, storage_buffer)] tracing: &mut [TracePoint],
-) {
-    if constants.draw_options.draw_field_lines == 0 {
-        return;
-    }
-
-    let segment_id = vtx_id / 2;
-    let endpoint = vtx_id % 2;
-    let step = segment_id + endpoint;
-
-    let index = instance_id * constants.electric_options.max_steps as i32 + step;
-    let point = tracing[index as usize];
-
-    let uv = Vec2::new(
-        (point.pos[0] / constants.width as f32) * 2.0 - 1.0,
-        (point.pos[1] / constants.height as f32) * -2.0 + 1.0,
-    );
-
-    *vtx_pos = uv.extend(0.0).extend(1.0);
-}
-
-#[spirv(fragment(entry_point_name = "electric_tracing_fs"))]
-pub fn electric_tracing_fs(output: &mut Vec4) {
-    *output = Vec4::new(1.0, 1.0, 1.0, 1.0);
+    (dir, strength)
 }

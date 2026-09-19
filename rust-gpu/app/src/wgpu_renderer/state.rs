@@ -57,13 +57,13 @@ impl State {
         // Small fast bits of memory that can be updated in a render pass
         // Vertex writable storage is required so that we can mutate a storage buffer and still use
         // it in the vertex shader
-        let required_features = wgpu::Features::IMMEDIATES
-            | wgpu::Features::VERTEX_WRITABLE_STORAGE
+        let required_features = wgpu::Features::VERTEX_WRITABLE_STORAGE
             | wgpu::Features::TEXTURE_ADAPTER_SPECIFIC_FORMAT_FEATURES
             | wgpu::Features::STORAGE_RESOURCE_BINDING_ARRAY;
         let required_limits = wgpu::Limits {
-            // Only 128 bits, shocker
-            max_immediate_size: 128,
+            max_storage_buffers_per_shader_stage: adapter
+                .limits()
+                .max_storage_buffers_per_shader_stage,
             ..Default::default()
         };
 
@@ -107,9 +107,18 @@ impl State {
         ];
 
         let initial_plates = vec![Plate {
-            edges: [450.0, 20.0, 450.0, 20.0, 450.0, 20.0, 450.0, 20.0],
-            charge: 5.0,
-            pad: [0.0, 0.0, 0.0],
+            edges: [
+                size.width as f32 / 2.0 - 280.0,
+                size.height as f32 / 6.0 - 20.0,
+                size.width as f32 / 2.0 + 280.0,
+                size.height as f32 / 6.0 - 20.0,
+                size.width as f32 / 2.0 + 280.0,
+                size.height as f32 / 6.0 + 20.0,
+                size.width as f32 / 2.0 - 280.0,
+                size.height as f32 / 6.0 + 20.0,
+            ],
+            potential: 5.0,
+            _pad: [0.0, 0.0, 0.0],
         }];
 
         // Create a renderer
@@ -445,7 +454,8 @@ impl State {
                     num_charges: self.renderer.electric_manager.charges.len() as u32,
                     num_plates: self.renderer.electric_manager.plates.len() as u32,
                     color_value: self.renderer.ui_manager.committed_input_values.color_value,
-                    _pad1: [0.0; 1],
+                    _pad0: 0.0,
+                    _pad1: 0.0,
                     draw_options: DrawOptions::from(
                         &self.renderer.ui_manager.committed_input_values,
                     ),

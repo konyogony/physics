@@ -1,9 +1,5 @@
-#[allow(unused_imports)]
-use spirv_std::num_traits::Float;
+use crate::*;
 // Utilitiy functions, which i didnt make myself :/
-
-use glam::{Vec3, Vec4};
-use spirv_std::arch::Derivative;
 
 pub fn antialias_no_fwidth(dist: f32, thickness: f32) -> f32 {
     let edge: f32 = 1.0;

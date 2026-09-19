@@ -1,4 +1,3 @@
-use shaders_shared::ShaderConstants;
 use wgpu::{
     ColorTargetState, ColorWrites, ComputePipeline, ComputePipelineDescriptor, FragmentState,
     FrontFace, MultisampleState, PolygonMode, PrimitiveState, PrimitiveTopology, RenderPass,
@@ -14,9 +13,12 @@ use crate::wgpu_renderer::bind_groups::electric::ElectricBindGroups;
 pub struct ElectricPipeline {
     charge_render_pipeline: RenderPipeline,
     tracing_render_pipeline: RenderPipeline,
-    compute_potential_pipeline: ComputePipeline,
+    plate_render_pipeline: RenderPipeline,
     compute_field_pipeline: ComputePipeline,
     compute_tracing_pipeline: ComputePipeline,
+    // Since its a ping pong model, we have to keep track of what the latest data buffer is
+    pub out_is_buffer_a: bool,
+    compute_potential_pipeline: ComputePipeline,
 }
 
 impl ElectricPipeline {
@@ -34,7 +36,7 @@ impl ElectricPipeline {
                 Some(&global_bind_group_layout.constants.constants),
                 Some(&global_bind_group_layout.electric.electric),
             ],
-            immediate_size: size_of::<ShaderConstants>() as u32,
+            immediate_size: 0,
         });
 
         let layout_compute = device.create_pipeline_layout(&PipelineLayoutDescriptor {
@@ -43,7 +45,7 @@ impl ElectricPipeline {
                 Some(&global_bind_group_layout.constants.constants),
                 Some(&global_bind_group_layout.electric.electric),
             ],
-            immediate_size: size_of::<ShaderConstants>() as u32,
+            immediate_size: 0,
         });
 
         let compute_potential_pipeline =
@@ -70,6 +72,43 @@ impl ElectricPipeline {
             module: &shader_module,
             entry_point: Some("electric_tracing_cs"),
             compilation_options: Default::default(),
+            cache: None,
+        });
+
+        let plate_render_pipeline = device.create_render_pipeline(&RenderPipelineDescriptor {
+            label: Some("ElectricPlatesRenderPipeline"),
+            layout: Some(&layout_render),
+            vertex: VertexState {
+                // Pass in that shader
+                module: &shader_module,
+                entry_point: Some("electric_plates_vs"),
+                compilation_options: Default::default(),
+                buffers: &[],
+            },
+            // Default culling & settings.
+            primitive: PrimitiveState {
+                topology: PrimitiveTopology::TriangleList,
+                strip_index_format: None,
+                front_face: FrontFace::Ccw,
+                cull_mode: None,
+                unclipped_depth: false,
+                polygon_mode: PolygonMode::Fill,
+                conservative: false,
+            },
+            depth_stencil: None,
+            multisample: MultisampleState::default(),
+            fragment: Some(FragmentState {
+                // Pass in that shader
+                module: &shader_module,
+                entry_point: Some("electric_fs"),
+                compilation_options: Default::default(),
+                targets: &[Some(ColorTargetState {
+                    format: out_format,
+                    blend: None,
+                    write_mask: ColorWrites::ALL,
+                })],
+            }),
+            multiview_mask: None,
             cache: None,
         });
 
@@ -152,7 +191,9 @@ impl ElectricPipeline {
             compute_potential_pipeline,
             charge_render_pipeline,
             tracing_render_pipeline,
+            plate_render_pipeline,
             compute_tracing_pipeline,
+            out_is_buffer_a: false,
         })
     }
 
@@ -166,10 +207,31 @@ impl ElectricPipeline {
     ) {
         rpass.set_pipeline(&self.charge_render_pipeline);
         rpass.set_bind_group(0, &constants_bind_groups.constants, &[]);
-        // HELP
-        rpass.set_bind_group(1, &electric_bind_groups.electric_compute_ba, &[]);
+        if self.out_is_buffer_a {
+            rpass.set_bind_group(1, &electric_bind_groups.electric_compute_ab, &[]);
+        } else {
+            rpass.set_bind_group(1, &electric_bind_groups.electric_compute_ba, &[]);
+        }
 
         rpass.draw(0..polygon_vertices, 0..num_charges);
+    }
+
+    pub fn draw_plates(
+        &self,
+        rpass: &mut RenderPass<'_>,
+        constants_bind_groups: &ConstantsBindGroups,
+        electric_bind_groups: &ElectricBindGroups,
+        num_plates: u32,
+    ) {
+        rpass.set_pipeline(&self.plate_render_pipeline);
+        rpass.set_bind_group(0, &constants_bind_groups.constants, &[]);
+        if self.out_is_buffer_a {
+            rpass.set_bind_group(1, &electric_bind_groups.electric_compute_ab, &[]);
+        } else {
+            rpass.set_bind_group(1, &electric_bind_groups.electric_compute_ba, &[]);
+        }
+
+        rpass.draw(0..6, 0..num_plates);
     }
 
     pub fn draw_tracing(
@@ -183,8 +245,11 @@ impl ElectricPipeline {
     ) {
         rpass.set_pipeline(&self.tracing_render_pipeline);
         rpass.set_bind_group(0, &constants_bind_groups.constants, &[]);
-        // HELP
-        rpass.set_bind_group(1, &electric_bind_groups.electric_compute_ba, &[]);
+        if self.out_is_buffer_a {
+            rpass.set_bind_group(1, &electric_bind_groups.electric_compute_ab, &[]);
+        } else {
+            rpass.set_bind_group(1, &electric_bind_groups.electric_compute_ba, &[]);
+        }
 
         rpass.draw(
             0..((max_steps as u32 - 1) * 2),
@@ -198,14 +263,17 @@ impl ElectricPipeline {
         constants_bind_groups: &ConstantsBindGroups,
         electric_bind_groups: &ElectricBindGroups,
         size: PhysicalSize<u32>,
-        pass_index: u32,
     ) {
         cpass.set_pipeline(&self.compute_potential_pipeline);
         cpass.set_bind_group(0, &constants_bind_groups.constants, &[]);
-        // HELP
-        cpass.set_bind_group(1, &electric_bind_groups.electric_compute_ba, &[]);
+        if self.out_is_buffer_a {
+            cpass.set_bind_group(1, &electric_bind_groups.electric_compute_ab, &[]);
+        } else {
+            cpass.set_bind_group(1, &electric_bind_groups.electric_compute_ba, &[]);
+        }
 
         cpass.dispatch_workgroups(size.width.div_ceil(16), size.height.div_ceil(16), 1);
+        self.out_is_buffer_a = !self.out_is_buffer_a;
     }
 
     pub fn compute_field(
@@ -217,8 +285,11 @@ impl ElectricPipeline {
     ) {
         cpass.set_pipeline(&self.compute_field_pipeline);
         cpass.set_bind_group(0, &constants_bind_groups.constants, &[]);
-        // HELP
-        cpass.set_bind_group(1, &electric_bind_groups.electric_compute_ba, &[]);
+        if self.out_is_buffer_a {
+            cpass.set_bind_group(1, &electric_bind_groups.electric_compute_ab, &[]);
+        } else {
+            cpass.set_bind_group(1, &electric_bind_groups.electric_compute_ba, &[]);
+        }
 
         cpass.dispatch_workgroups(size.width.div_ceil(16), size.height.div_ceil(16), 1);
     }
@@ -233,8 +304,11 @@ impl ElectricPipeline {
     ) {
         cpass.set_pipeline(&self.compute_tracing_pipeline);
         cpass.set_bind_group(0, &constants_bind_groups.constants, &[]);
-        // HELP
-        cpass.set_bind_group(1, &electric_bind_groups.electric_compute_ba, &[]);
+        if self.out_is_buffer_a {
+            cpass.set_bind_group(1, &electric_bind_groups.electric_compute_ab, &[]);
+        } else {
+            cpass.set_bind_group(1, &electric_bind_groups.electric_compute_ba, &[]);
+        }
 
         cpass.dispatch_workgroups((num_charges * num_particles_per_charge).div_ceil(128), 1, 1);
     }

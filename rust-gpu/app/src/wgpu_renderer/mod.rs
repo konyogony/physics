@@ -64,8 +64,14 @@ impl From<&InputValues> for ElectricOptions {
             step_size: value.electric_ui_options.step_size,
             stop_distance: value.electric_ui_options.stop_distance,
             charge_strength_scale: value.electric_ui_options.charge_strength_scale,
-            _pad: [0.0; 2],
-            equipotential_color_rgba: value.electric_ui_options.equipotential_color_rgba,
+            _pad0: 0.0,
+            _pad1: 0.0,
+            equipotential_color_rgba: shaders_shared::Color4 {
+                r: value.electric_ui_options.equipotential_color_rgba[0],
+                g: value.electric_ui_options.equipotential_color_rgba[1],
+                b: value.electric_ui_options.equipotential_color_rgba[2],
+                a: value.electric_ui_options.equipotential_color_rgba[3],
+            },
         }
     }
 }
@@ -78,6 +84,9 @@ impl From<&InputValues> for DrawOptions {
             draw_potential: value.draw_ui_options.draw_potential as u32,
             draw_field_lines: value.draw_ui_options.draw_field_lines as u32,
             draw_normalised_vec: value.draw_ui_options.draw_normalised_vec as u32,
+            _pad0: 0.0,
+            _pad1: 0.0,
+            _pad2: 0.0,
         }
     }
 }

@@ -1,6 +1,4 @@
-use glam::Vec2;
-#[allow(unused_imports)]
-use spirv_std::num_traits::Float;
+use crate::*;
 
 pub struct SDF;
 

@@ -1,10 +1,9 @@
 #![no_std]
-// Seperate shader for the particles
+#![allow(unused_imports)]
 #![allow(clippy::too_many_arguments)]
-
 use bytemuck::{Pod, Zeroable};
-use glam::Vec4;
-#[allow(unused_imports)]
+use glam::{Vec2, Vec3, Vec4};
+use spirv_std::arch::Derivative;
 use spirv_std::num_traits::Float;
 
 pub mod sdf;
@@ -44,8 +43,8 @@ pub const H: i32 = 1;
 #[repr(C)]
 pub struct Plate {
     pub edges: [f32; 8],
-    pub charge: f32,
-    pub pad: [f32; 3],
+    pub potential: f32,
+    pub _pad: [f32; 3],
 }
 
 #[derive(Debug, Clone, Copy, Zeroable, Pod)]
@@ -69,6 +68,26 @@ pub struct TracePoint {
     pub pos: [f32; 2],
 }
 
+#[derive(Debug, Clone, Copy, Zeroable, Pod)]
+#[repr(C)]
+pub struct Color4 {
+    pub r: f32,
+    pub g: f32,
+    pub b: f32,
+    pub a: f32,
+}
+
+impl Default for Color4 {
+    fn default() -> Self {
+        Self {
+            r: 1.0,
+            g: 1.0,
+            b: 1.0,
+            a: 1.0,
+        }
+    }
+}
+
 #[derive(Default, Copy, Clone, Pod, Zeroable)]
 #[repr(C)]
 pub struct ElectricOptions {
@@ -78,8 +97,10 @@ pub struct ElectricOptions {
     pub step_size: f32,
     pub stop_distance: f32,
     pub charge_strength_scale: f32,
-    pub _pad: [f32; 2],
-    pub equipotential_color_rgba: [f32; 4],
+    //  cannot use arrays to pad uniform buffers
+    pub _pad0: f32,
+    pub _pad1: f32,
+    pub equipotential_color_rgba: Color4,
 }
 
 // --- From Grid Shader ---
@@ -114,7 +135,9 @@ pub struct ShaderConstants {
     pub num_charges: u32,
     pub num_plates: u32,
     pub color_value: f32,
-    pub _pad1: [f32; 1],
+    //  cannot use arrays to pad uniform buffers
+    pub _pad0: f32,
+    pub _pad1: f32,
     pub draw_options: DrawOptions,
     pub particle_options: ParticleOptions,
     pub electric_options: ElectricOptions,
@@ -128,4 +151,8 @@ pub struct DrawOptions {
     pub draw_potential: u32,
     pub draw_field_lines: u32,
     pub draw_normalised_vec: u32,
+    //  cannot use arrays to pad uniform buffers
+    pub _pad0: f32,
+    pub _pad1: f32,
+    pub _pad2: f32,
 }

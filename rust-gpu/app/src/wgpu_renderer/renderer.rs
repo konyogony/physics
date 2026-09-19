@@ -15,6 +15,8 @@ use wgpu::{
 use winit::dpi::PhysicalSize;
 use winit::window::Window;
 
+const POTENTIAL_ITERATIONS: u32 = 64;
+
 // This file is basically responsible for first of all
 // Renderer holds the device & queue + layout & pipeline, responsible for rendering
 pub struct Renderer {
@@ -100,7 +102,7 @@ impl Renderer {
         let constant_buffer = self
             .global_bind_group_layout
             .constants
-            .create_constant_buffers(&self.device, shader_constants);
+            .create_constant_uniform_buffers(&self.device, shader_constants);
 
         let constant_bind_groups = self
             .global_bind_group_layout
@@ -121,15 +123,15 @@ impl Renderer {
             timestamp_writes: None,
         });
 
-        // HELPPP
-        let pass_index = 0;
-        self.electric_pipeline.compute_potential(
-            &mut cpass,
-            &constant_bind_groups,
-            &self.electric_manager.electric_bind_groups,
-            self.electric_manager.size,
-            pass_index,
-        );
+        // TALK ABT IN BLOG
+        for _ in 0..POTENTIAL_ITERATIONS {
+            self.electric_pipeline.compute_potential(
+                &mut cpass,
+                &constant_bind_groups,
+                &self.electric_manager.electric_bind_groups,
+                self.electric_manager.size,
+            );
+        }
         drop(cpass);
 
         let mut cpass = cmd_encoder.begin_compute_pass(&ComputePassDescriptor {
@@ -158,6 +160,7 @@ impl Renderer {
             &self.particle_manager.particle_bind_groups,
             &self.electric_manager.electric_bind_groups,
             self.particle_manager.current_num_of_particles,
+            self.electric_pipeline.out_is_buffer_a,
         );
 
         // Dont forget to drop after each pass
@@ -207,6 +210,7 @@ impl Renderer {
             &mut rpass,
             &constant_bind_groups,
             &self.electric_manager.electric_bind_groups,
+            self.electric_pipeline.out_is_buffer_a,
         );
 
         self.particle_pipeline.draw(
@@ -229,6 +233,13 @@ impl Renderer {
                 .committed_input_values
                 .particle_ui_options
                 .polygon_vertices,
+        );
+
+        self.electric_pipeline.draw_plates(
+            &mut rpass,
+            &constant_bind_groups,
+            &self.electric_manager.electric_bind_groups,
+            self.electric_manager.plates.len() as u32,
         );
 
         self.electric_pipeline.draw_tracing(

@@ -35,7 +35,7 @@ impl GridPipeline {
                 Some(&global_bind_group_layout.electric.electric),
             ],
             // Have a size of the shader constants.
-            immediate_size: size_of::<ShaderConstants>() as u32,
+            immediate_size: 0,
         });
 
         // Create the pipeline itself
@@ -85,13 +85,19 @@ impl GridPipeline {
         rpass: &mut RenderPass<'_>,
         constants_bind_groups: &ConstantsBindGroups,
         electric_bind_groups: &ElectricBindGroups,
+        electric_out_is_buffer_a: bool,
     ) {
         // First set the pipeline that we have created
         rpass.set_pipeline(&self.render_pipeline);
+
         // Pass in the bind groups
         rpass.set_bind_group(0, &constants_bind_groups.constants, &[]);
-        // HELP
-        rpass.set_bind_group(1, &electric_bind_groups.electric_compute_ba, &[]);
+        if electric_out_is_buffer_a {
+            rpass.set_bind_group(1, &electric_bind_groups.electric_compute_ab, &[]);
+        } else {
+            rpass.set_bind_group(1, &electric_bind_groups.electric_compute_ba, &[]);
+        }
+
         // Since we are just looking to cover whole screen, make 3 vertices, 1 draw pass.
         rpass.draw(0..3, 0..1);
     }

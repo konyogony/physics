@@ -36,8 +36,7 @@ impl ParticlePipeline {
                 Some(&global_bind_group_layout.constants.constants),
                 Some(&global_bind_group_layout.particles.particles_render),
             ],
-            // Have a size of the shader constants.
-            immediate_size: size_of::<ShaderConstants>() as u32,
+            immediate_size: 0,
         });
 
         let layout_compute = device.create_pipeline_layout(&PipelineLayoutDescriptor {
@@ -47,7 +46,7 @@ impl ParticlePipeline {
                 Some(&global_bind_group_layout.particles.particles_compute),
                 Some(&global_bind_group_layout.electric.electric),
             ],
-            immediate_size: size_of::<ShaderConstants>() as u32,
+            immediate_size: 0,
         });
 
         let render_pipeline = device.create_render_pipeline(&RenderPipelineDescriptor {
@@ -133,6 +132,7 @@ impl ParticlePipeline {
         particle_bind_groups: &ParticleBindGroups,
         electric_bind_groups: &ElectricBindGroups,
         num_particles: u32,
+        electric_out_is_buffer_a: bool,
     ) {
         cpass.set_pipeline(&self.compute_pipeline);
         cpass.set_bind_group(0, &constants_bind_groups.constants, &[]);
@@ -143,9 +143,11 @@ impl ParticlePipeline {
             cpass.set_bind_group(1, &particle_bind_groups.particles_compute_ba, &[]);
         }
 
-        // HELP
-        cpass.set_bind_group(2, &electric_bind_groups.electric_compute_ba, &[]);
-        //cpass.set_bind_group(3, &electric_bind_groups.electric, &[]);
+        if electric_out_is_buffer_a {
+            cpass.set_bind_group(2, &electric_bind_groups.electric_compute_ab, &[]);
+        } else {
+            cpass.set_bind_group(2, &electric_bind_groups.electric_compute_ba, &[]);
+        }
         cpass.dispatch_workgroups(num_particles.div_ceil(256), 1, 1);
         self.out_is_buffer_a = !self.out_is_buffer_a;
     }

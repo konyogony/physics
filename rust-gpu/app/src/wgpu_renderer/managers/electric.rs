@@ -93,6 +93,13 @@ impl ElectricManager {
             charge.position[1] *= height_transform;
         }
 
+        for plate in self.plates.iter_mut() {
+            for vertex in plate.edges.chunks_exact_mut(2) {
+                vertex[0] *= width_transform;
+                vertex[1] *= height_transform;
+            }
+        }
+
         self.electric_storage_buffers = global_bind_group_layout.electric.create_electric_buffers(
             device,
             new_size,

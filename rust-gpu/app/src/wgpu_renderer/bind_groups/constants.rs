@@ -1,8 +1,8 @@
 use shaders_shared::ShaderConstants;
 use wgpu::{
     BindGroup, BindGroupDescriptor, BindGroupEntry, BindGroupLayout, BindGroupLayoutDescriptor,
-    BindGroupLayoutEntry, BindingResource, BindingType, Buffer, BufferBinding, BufferBindingType,
-    BufferUsages, Device, ShaderStages,
+    BindGroupLayoutEntry, BindingResource, BindingType, Buffer, BufferBinding, Device,
+    ShaderStages,
     util::{BufferInitDescriptor, DeviceExt},
 };
 
@@ -37,7 +37,7 @@ impl ConstantsBindGroupsLayout {
                 visibility: ShaderStages::VERTEX_FRAGMENT | ShaderStages::COMPUTE,
                 // Read-only storage buffer
                 ty: BindingType::Buffer {
-                    ty: BufferBindingType::Storage { read_only: true },
+                    ty: wgpu::BufferBindingType::Uniform,
                     has_dynamic_offset: false,
                     min_binding_size: None,
                 },
@@ -48,7 +48,7 @@ impl ConstantsBindGroupsLayout {
         Self { constants }
     }
 
-    pub fn create_constant_buffers(
+    pub fn create_constant_uniform_buffers(
         &self,
         device: &Device,
         shader_constants: &ShaderConstants,
@@ -56,7 +56,7 @@ impl ConstantsBindGroupsLayout {
         let constants = device.create_buffer_init(&BufferInitDescriptor {
             label: Some("ConstantsBuffer"),
             contents: bytemuck::bytes_of(shader_constants),
-            usage: BufferUsages::STORAGE | BufferUsages::VERTEX | BufferUsages::COPY_DST,
+            usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
         });
 
         ConstantsBuffers { constants }
