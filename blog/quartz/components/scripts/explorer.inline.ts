@@ -159,10 +159,13 @@ async function setupExplorer(currentSlug: FullSlug) {
 
     for (const explorer of allExplorers) {
         const dataFns = JSON.parse(explorer.dataset.dataFns || "{}")
+        const isMobile = window.matchMedia("(max-width: 800px)").matches
         const opts: ParsedOptions = {
             folderClickBehavior: (explorer.dataset.behavior || "collapse") as "collapse" | "link",
-            folderDefaultState: (explorer.dataset.collapsed || "collapsed") as "collapsed" | "open",
-            useSavedState: explorer.dataset.savestate === "true",
+            folderDefaultState: isMobile
+                ? "open"
+                : ((explorer.dataset.collapsed || "collapsed") as "collapsed" | "open"),
+            useSavedState: isMobile ? false : explorer.dataset.savestate === "true",
             order: dataFns.order || ["filter", "map", "sort"],
             sortFn: new Function("return " + (dataFns.sortFn || "undefined"))(),
             filterFn: new Function("return " + (dataFns.filterFn || "undefined"))(),

@@ -92,34 +92,50 @@ impl State {
         let size = swapchain.get_size();
         let config = swapchain.get_config().unwrap();
         let format = swapchain.get_format();
+        let initial_charges = vec![];
+        //let initial_charges = vec![
+        //    Charge {
+        //        position: [size.width as f32 / 2.0 + 200.0, size.height as f32 / 2.0],
+        //        charge: -1.0,
+        //        _pad: 0.0,
+        //    },
+        //    Charge {
+        //        position: [size.width as f32 / 2.0 - 200.0, size.height as f32 / 2.0],
+        //        charge: 1.0,
+        //        _pad: 0.0,
+        //    },
+        //];
 
-        let initial_charges = vec![
-            Charge {
-                position: [size.width as f32 / 2.0 + 200.0, size.height as f32 / 2.0],
-                charge: -1.0,
-                _pad: 0.0,
+        let initial_plates = vec![
+            Plate {
+                edges: [
+                    size.width as f32 / 2.0 - 280.0,
+                    size.height as f32 / 2.0 - 150.0 - 20.0,
+                    size.width as f32 / 2.0 + 280.0,
+                    size.height as f32 / 2.0 - 150.0 - 20.0,
+                    size.width as f32 / 2.0 + 280.0,
+                    size.height as f32 / 2.0 - 150.0 + 20.0,
+                    size.width as f32 / 2.0 - 280.0,
+                    size.height as f32 / 2.0 - 150.0 + 20.0,
+                ],
+                potential: 1.0,
+                _pad: [0.0, 0.0, 0.0],
             },
-            Charge {
-                position: [size.width as f32 / 2.0 - 200.0, size.height as f32 / 2.0],
-                charge: 1.0,
-                _pad: 0.0,
+            Plate {
+                edges: [
+                    size.width as f32 / 2.0 - 280.0,
+                    size.height as f32 / 2.0 + 150.0 - 20.0,
+                    size.width as f32 / 2.0 + 280.0,
+                    size.height as f32 / 2.0 + 150.0 - 20.0,
+                    size.width as f32 / 2.0 + 280.0,
+                    size.height as f32 / 2.0 + 150.0 + 20.0,
+                    size.width as f32 / 2.0 - 280.0,
+                    size.height as f32 / 2.0 + 150.0 + 20.0,
+                ],
+                potential: -1.0,
+                _pad: [0.0, 0.0, 0.0],
             },
         ];
-
-        let initial_plates = vec![Plate {
-            edges: [
-                size.width as f32 / 2.0 - 280.0,
-                size.height as f32 / 6.0 - 20.0,
-                size.width as f32 / 2.0 + 280.0,
-                size.height as f32 / 6.0 - 20.0,
-                size.width as f32 / 2.0 + 280.0,
-                size.height as f32 / 6.0 + 20.0,
-                size.width as f32 / 2.0 - 280.0,
-                size.height as f32 / 6.0 + 20.0,
-            ],
-            potential: 5.0,
-            _pad: [0.0, 0.0, 0.0],
-        }];
 
         // Create a renderer
         let renderer = Renderer::new(
@@ -282,22 +298,18 @@ impl State {
             self.is_full_screen = !self.is_full_screen
         }
 
+        let cv = &mut self.renderer.ui_manager.input_values.color_value;
         if input_actions.increment_color_fast {
-            self.renderer.ui_manager.input_values.color_value += 5.0;
+            *cv *= 2.0;
         }
         if input_actions.increment_color {
-            self.renderer.ui_manager.input_values.color_value += 0.5;
+            *cv *= 1.25;
         }
-
-        if input_actions.decrement_color_fast
-            && self.renderer.ui_manager.input_values.color_value >= 5.0
-        {
-            self.renderer.ui_manager.input_values.color_value -= 5.0;
+        if input_actions.decrement_color_fast {
+            *cv *= 0.5;
         }
-
-        if input_actions.decrement_color && self.renderer.ui_manager.input_values.color_value >= 0.5
-        {
-            self.renderer.ui_manager.input_values.color_value -= 0.5;
+        if input_actions.decrement_color {
+            *cv *= 0.8;
         }
 
         if input_actions.remove_particles {
@@ -453,9 +465,9 @@ impl State {
                     epsilon_naught: ((8.9_f32).powi(-8)),
                     num_charges: self.renderer.electric_manager.charges.len() as u32,
                     num_plates: self.renderer.electric_manager.plates.len() as u32,
+                    num_segments: self.renderer.electric_manager.segments.len() as u32,
                     color_value: self.renderer.ui_manager.committed_input_values.color_value,
                     _pad0: 0.0,
-                    _pad1: 0.0,
                     draw_options: DrawOptions::from(
                         &self.renderer.ui_manager.committed_input_values,
                     ),

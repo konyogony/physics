@@ -12,7 +12,7 @@ use shaders_shared::{
 use spirv_std::num_traits::Float;
 use spirv_std::spirv;
 
-pub const MULTIPLIER: f32 = 0.3;
+pub const MULTIPLIER: f32 = 1.5;
 
 pub mod fragment;
 pub mod vertex;

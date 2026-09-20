@@ -1,4 +1,3 @@
-use shaders_shared::ShaderConstants;
 use wgpu::{
     ColorTargetState, ColorWrites, ComputePass, Device, FragmentState, FrontFace, MultisampleState,
     PipelineLayoutDescriptor, PolygonMode, PrimitiveState, PrimitiveTopology, RenderPass,
@@ -132,7 +131,6 @@ impl ParticlePipeline {
         particle_bind_groups: &ParticleBindGroups,
         electric_bind_groups: &ElectricBindGroups,
         num_particles: u32,
-        electric_out_is_buffer_a: bool,
     ) {
         cpass.set_pipeline(&self.compute_pipeline);
         cpass.set_bind_group(0, &constants_bind_groups.constants, &[]);
@@ -143,11 +141,7 @@ impl ParticlePipeline {
             cpass.set_bind_group(1, &particle_bind_groups.particles_compute_ba, &[]);
         }
 
-        if electric_out_is_buffer_a {
-            cpass.set_bind_group(2, &electric_bind_groups.electric_compute_ab, &[]);
-        } else {
-            cpass.set_bind_group(2, &electric_bind_groups.electric_compute_ba, &[]);
-        }
+        cpass.set_bind_group(2, &electric_bind_groups.electric_compute, &[]);
         cpass.dispatch_workgroups(num_particles.div_ceil(256), 1, 1);
         self.out_is_buffer_a = !self.out_is_buffer_a;
     }

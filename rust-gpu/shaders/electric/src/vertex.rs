@@ -74,7 +74,12 @@ pub fn electric_plates_vs(
     );
 
     *vtx_pos = pos_uv.extend(0.0).extend(1.0);
-    *vtx_color = Vec3::new(0.722, 0.451, 0.200);
+
+    if plate.potential < 0.0 {
+        *vtx_color = Vec3::new(0.30, 0.48, 0.62);
+    } else {
+        *vtx_color = Vec3::new(0.80, 0.42, 0.28);
+    }
 }
 
 #[spirv(vertex(entry_point_name = "electric_tracing_vs"))]
@@ -83,7 +88,7 @@ pub fn electric_tracing_vs(
     #[spirv(instance_index)] instance_id: i32,
     #[spirv(position)] vtx_pos: &mut Vec4,
     #[spirv(descriptor_set = 0, binding = 0, uniform)] constants: &ShaderConstants,
-    #[spirv(descriptor_set = 1, binding = 3, storage_buffer)] tracing: &mut [TracePoint],
+    #[spirv(descriptor_set = 1, binding = 4, storage_buffer)] tracing: &mut [TracePoint],
 ) {
     if constants.draw_options.draw_field_lines == 0 {
         return;

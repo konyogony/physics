@@ -10,7 +10,7 @@ The first chapter has opened up with a brief overview of the electromagnetic cou
 bringing up important concepts such as superposition,
 
 $$
-    \vec{E} = \vec{E_1} + \vec{E_2}
+    \vec{E} = \vec{E}_1 + \vec{E}_2
 $$
 
 the Maxwell's equations,

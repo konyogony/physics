@@ -57,7 +57,7 @@ impl Default for InputValues {
                 clear_charges: false,
             },
             tool: CurrentTool::default(),
-            color_value: 10.0,
+            color_value: 0.1,
         }
     }
 }
@@ -102,6 +102,7 @@ pub struct ElectricUIOptions {
     pub max_steps: usize,
     pub step_size: f32,
     pub stop_distance: f32,
+    // TODO: REMVOE
     pub charge_strength_scale: f32,
     pub equipotential_color_rgba: [f32; 4],
 }

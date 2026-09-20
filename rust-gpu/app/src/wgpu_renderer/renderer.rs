@@ -6,7 +6,7 @@ use crate::wgpu_renderer::pipelines::electric::ElectricPipeline;
 use crate::wgpu_renderer::pipelines::grid::GridPipeline;
 use crate::wgpu_renderer::pipelines::particle::ParticlePipeline;
 use crate::wgpu_renderer::ui::manager::UIManager;
-use shaders_shared::{Charge, Plate, ShaderConstants};
+use shaders_shared::{Charge, Plate, SEGMENTS_PER_PLATE, ShaderConstants};
 use wgpu::wgt::CommandEncoderDescriptor;
 use wgpu::{
     Color, ComputePassDescriptor, Device, LoadOp, Operations, Queue, RenderPassColorAttachment,
@@ -14,8 +14,6 @@ use wgpu::{
 };
 use winit::dpi::PhysicalSize;
 use winit::window::Window;
-
-const POTENTIAL_ITERATIONS: u32 = 64;
 
 // This file is basically responsible for first of all
 // Renderer holds the device & queue + layout & pipeline, responsible for rendering
@@ -109,6 +107,11 @@ impl Renderer {
             .constants
             .create_constant_bind_groups(&self.device, &constant_buffer);
 
+        self.electric_manager
+            .ensure_tracing_capacity(&self.device, &self.global_bind_group_layout.electric);
+
+        self.electric_manager.solve_for_charges(&self.queue);
+
         // Create a command encoder, responsible for drawing the stuff
         // Shared between both compute & render pass
         let mut cmd_encoder = self
@@ -123,15 +126,12 @@ impl Renderer {
             timestamp_writes: None,
         });
 
-        // TALK ABT IN BLOG
-        for _ in 0..POTENTIAL_ITERATIONS {
-            self.electric_pipeline.compute_potential(
-                &mut cpass,
-                &constant_bind_groups,
-                &self.electric_manager.electric_bind_groups,
-                self.electric_manager.size,
-            );
-        }
+        self.electric_pipeline.compute_potential(
+            &mut cpass,
+            &constant_bind_groups,
+            &self.electric_manager.electric_bind_groups,
+            self.electric_manager.size,
+        );
         drop(cpass);
 
         let mut cpass = cmd_encoder.begin_compute_pass(&ComputePassDescriptor {
@@ -146,7 +146,15 @@ impl Renderer {
             self.electric_manager.size,
         );
 
-        self.electric_pipeline.compute_tracing(
+        self.electric_pipeline.compute_tracing_plates(
+            &mut cpass,
+            &constant_bind_groups,
+            &self.electric_manager.electric_bind_groups,
+            self.electric_manager.plates.len() as u32,
+            SEGMENTS_PER_PLATE,
+        );
+
+        self.electric_pipeline.compute_tracing_charges(
             &mut cpass,
             &constant_bind_groups,
             &self.electric_manager.electric_bind_groups,
@@ -160,7 +168,6 @@ impl Renderer {
             &self.particle_manager.particle_bind_groups,
             &self.electric_manager.electric_bind_groups,
             self.particle_manager.current_num_of_particles,
-            self.electric_pipeline.out_is_buffer_a,
         );
 
         // Dont forget to drop after each pass
@@ -210,7 +217,6 @@ impl Renderer {
             &mut rpass,
             &constant_bind_groups,
             &self.electric_manager.electric_bind_groups,
-            self.electric_pipeline.out_is_buffer_a,
         );
 
         self.particle_pipeline.draw(
@@ -242,13 +248,16 @@ impl Renderer {
             self.electric_manager.plates.len() as u32,
         );
 
+        let total_instances = (self.electric_manager.charges.len() as u32
+            * self.electric_manager.num_particles_per_charge)
+            + self.electric_manager.segments.len() as u32;
+
         self.electric_pipeline.draw_tracing(
             &mut rpass,
             &constant_bind_groups,
             &self.electric_manager.electric_bind_groups,
-            self.electric_manager.charges.len() as u32,
             self.electric_manager.max_steps,
-            self.electric_manager.num_particles_per_charge,
+            total_instances,
         );
 
         // Yes this is voodo magick.

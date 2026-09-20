@@ -33,11 +33,16 @@ pub const MAX_PARTICLES: u32 = 262144;
 
 // --- From Electric Shader ---
 // Softening factor
-pub const EPSILON_SQ: f32 = 1.0;
 pub const MAX_CHARGES: u32 = 100;
 pub const MAX_PLATES: u32 = 10;
-pub const DV: f32 = 1.0;
+pub const SEGMENTS_PER_PLATE: u32 = 128;
 pub const H: i32 = 1;
+pub const PX_PER_UNIT: f32 = 100.0;
+pub const SOFTENING: f32 = 0.05;
+pub const BEM_WIRE_RADIUS: f32 = 0.05;
+pub const PARTICLE_Q_OVER_M: f32 = 1.0;
+pub const MAX_DT: f32 = 1.0 / 30.0;
+pub const EPSILON: f32 = 1e-5;
 
 #[derive(Debug, Clone, Copy, Zeroable, Pod)]
 #[repr(C)]
@@ -45,6 +50,17 @@ pub struct Plate {
     pub edges: [f32; 8],
     pub potential: f32,
     pub _pad: [f32; 3],
+}
+
+#[derive(Debug, Clone, Copy, Zeroable, Pod)]
+#[repr(C)]
+pub struct Segment {
+    pub length: f32,
+    pub midpoint: [f32; 2],
+    pub normal: [f32; 2],
+    pub target: f32,
+    pub solved_charge: f32,
+    pub _pad: f32,
 }
 
 #[derive(Debug, Clone, Copy, Zeroable, Pod)]
@@ -97,10 +113,52 @@ pub struct ElectricOptions {
     pub step_size: f32,
     pub stop_distance: f32,
     pub charge_strength_scale: f32,
+    pub equipotential_spacing: f32,
     //  cannot use arrays to pad uniform buffers
     pub _pad0: f32,
-    pub _pad1: f32,
     pub equipotential_color_rgba: Color4,
+}
+
+#[repr(u32)]
+#[derive(Copy, Clone, PartialEq, Eq)]
+pub enum Condition {
+    Inside = 0,
+    Outside = 1,
+    Boundary = 2,
+}
+
+pub fn is_inside(point: Vec2, vertices: [Vec2; 4], margin: f32) -> Condition {
+    let winding = {
+        let cross = (vertices[1] - vertices[0]).perp_dot(vertices[2] - vertices[0]);
+        if cross < 0.0 { -1.0 } else { 1.0 }
+    };
+    let mut min_signed_dist = f32::MAX;
+
+    for i in 0..4 {
+        let a = vertices[i];
+        let b = vertices[(i + 1) % 4];
+
+        let edge = b - a;
+        let edge_len = edge.length();
+
+        if edge_len < EPSILON {
+            continue;
+        }
+
+        let to_p = point - a;
+
+        let dist = (edge.perp_dot(to_p) / edge_len) * winding;
+
+        min_signed_dist = min_signed_dist.min(dist);
+    }
+
+    if min_signed_dist > margin {
+        Condition::Inside
+    } else if min_signed_dist >= -margin {
+        Condition::Boundary
+    } else {
+        Condition::Outside
+    }
 }
 
 // --- From Grid Shader ---
@@ -134,10 +192,10 @@ pub struct ShaderConstants {
     pub epsilon_naught: f32,
     pub num_charges: u32,
     pub num_plates: u32,
+    pub num_segments: u32,
     pub color_value: f32,
     //  cannot use arrays to pad uniform buffers
     pub _pad0: f32,
-    pub _pad1: f32,
     pub draw_options: DrawOptions,
     pub particle_options: ParticleOptions,
     pub electric_options: ElectricOptions,

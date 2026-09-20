@@ -1,10 +1,12 @@
+use shaders_shared::{EPSILON, PX_PER_UNIT};
+
 use crate::*;
 
 #[spirv(fragment(entry_point_name = "grid_fs"))]
 pub fn grid_fs(
     #[spirv(descriptor_set = 0, binding = 0, uniform)] constants: &ShaderConstants,
-    #[spirv(descriptor_set = 1, binding = 2, storage_buffer)] electric_field: &mut [Field],
-    #[spirv(descriptor_set = 1, binding = 4, storage_buffer)] potential_field: &[f32],
+    #[spirv(descriptor_set = 1, binding = 3, storage_buffer)] electric_field: &mut [Field],
+    #[spirv(descriptor_set = 1, binding = 5, storage_buffer)] potential_field: &mut [f32],
     #[spirv(frag_coord)] frag_coords: Vec4,
     output: &mut Vec4,
 ) {
@@ -136,29 +138,29 @@ pub fn grid_fs(
         }
     }
 
-    if constants.draw_options.draw_potential == 1 && constants.num_charges > 0 {
-        let index = px_x.floor() as i32 + px_y.floor() as i32 * constants.width as i32;
-        let rgba = constants.electric_options.equipotential_color_rgba;
-        let color = Vec4::new(rgba.r, rgba.g, rgba.b, rgba.a);
-
+    if constants.draw_options.draw_potential == 1 {
+        let index = (px_x.floor() as i32 + px_y.floor() as i32 * constants.width as i32) as usize;
         // Safety check
         if (index as usize) < electric_field.len() && (index as usize) < potential_field.len() {
+            let rgba = constants.electric_options.equipotential_color_rgba;
+            let color = Vec4::new(rgba.r, rgba.g, rgba.b, rgba.a);
+
             let field_reading = electric_field[index as usize].field;
+            let e_len = Vec2::new(field_reading[0], field_reading[1])
+                .length()
+                .max(EPSILON);
+            let phi = potential_field[index];
 
-            // We can use vec and its strength to keep consistant thickness.
-            let vec = Vec2::new(field_reading[0], field_reading[1]);
-            let vec_strength = vec.length().max(0.0001);
+            let spacing = constants
+                .electric_options
+                .equipotential_spacing
+                .max(EPSILON);
+            let d_phi = (phi - (phi / spacing).round() * spacing).abs();
 
-            let current_potential = potential_field[index as usize];
-            let mut alpha = 0.0;
-            let mut target_potential = -1000.0;
+            let dist_px = d_phi / e_len * PX_PER_UNIT;
+            let pitch_px = spacing / e_len * PX_PER_UNIT;
 
-            while target_potential <= 1000.0 {
-                let potential_difference = (target_potential - current_potential).abs();
-                alpha += antialias(potential_difference / vec_strength, 1.0);
-                target_potential += 250.0;
-            }
-
+            let alpha = antialias_no_fwidth(dist_px, 1.0) * smoothstep(2.0, 6.0, pitch_px);
             *output = output.lerp(color, alpha);
         }
     }

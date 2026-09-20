@@ -26,7 +26,7 @@ What this means in practice is that it is much easier to compute and deal with c
 Let us focus on the Coulombs Law now. The Coulomb law talks about the force exerted on two charges, and is equal to the following expression.
 
 $$
-\vec{F_1} = \frac{1}{4\pi \epsilon_0} \, \frac{q_1 \, q_2}{r^2_{12}} \, \hat{e_{12}} = -\vec{F_2}
+\vec{F}_1 = \frac{1}{4\pi \epsilon_0} \, \frac{q_1 \, q_2}{r^2_{12}} \, \hat{e_{12}} = -\vec{F}_2
 $$
 
 Where $\hat{e_{12}}$ represents the unit vector from $q_1$ to $q_2$. An electric field is defined as the force per unit charge, therefore if we take $q_1$ as the reference, the electric field becomes:

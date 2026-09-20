@@ -15,9 +15,8 @@ pub struct ElectricPipeline {
     tracing_render_pipeline: RenderPipeline,
     plate_render_pipeline: RenderPipeline,
     compute_field_pipeline: ComputePipeline,
-    compute_tracing_pipeline: ComputePipeline,
-    // Since its a ping pong model, we have to keep track of what the latest data buffer is
-    pub out_is_buffer_a: bool,
+    compute_plates_tracing_pipeline: ComputePipeline,
+    compute_charges_tracing_pipeline: ComputePipeline,
     compute_potential_pipeline: ComputePipeline,
 }
 
@@ -66,14 +65,24 @@ impl ElectricPipeline {
             cache: None,
         });
 
-        let compute_tracing_pipeline = device.create_compute_pipeline(&ComputePipelineDescriptor {
-            label: Some("TracingComputePipeline"),
-            layout: Some(&layout_compute),
-            module: &shader_module,
-            entry_point: Some("electric_tracing_cs"),
-            compilation_options: Default::default(),
-            cache: None,
-        });
+        let compute_plates_tracing_pipeline =
+            device.create_compute_pipeline(&ComputePipelineDescriptor {
+                label: Some("TracingPlatesComputePipeline"),
+                layout: Some(&layout_compute),
+                module: &shader_module,
+                entry_point: Some("electric_tracing_plates_cs"),
+                compilation_options: Default::default(),
+                cache: None,
+            });
+        let compute_charges_tracing_pipeline =
+            device.create_compute_pipeline(&ComputePipelineDescriptor {
+                label: Some("TracingChargesComputePipeline"),
+                layout: Some(&layout_compute),
+                module: &shader_module,
+                entry_point: Some("electric_tracing_charges_cs"),
+                compilation_options: Default::default(),
+                cache: None,
+            });
 
         let plate_render_pipeline = device.create_render_pipeline(&RenderPipelineDescriptor {
             label: Some("ElectricPlatesRenderPipeline"),
@@ -192,8 +201,8 @@ impl ElectricPipeline {
             charge_render_pipeline,
             tracing_render_pipeline,
             plate_render_pipeline,
-            compute_tracing_pipeline,
-            out_is_buffer_a: false,
+            compute_plates_tracing_pipeline,
+            compute_charges_tracing_pipeline,
         })
     }
 
@@ -207,11 +216,7 @@ impl ElectricPipeline {
     ) {
         rpass.set_pipeline(&self.charge_render_pipeline);
         rpass.set_bind_group(0, &constants_bind_groups.constants, &[]);
-        if self.out_is_buffer_a {
-            rpass.set_bind_group(1, &electric_bind_groups.electric_compute_ab, &[]);
-        } else {
-            rpass.set_bind_group(1, &electric_bind_groups.electric_compute_ba, &[]);
-        }
+        rpass.set_bind_group(1, &electric_bind_groups.electric_compute, &[]);
 
         rpass.draw(0..polygon_vertices, 0..num_charges);
     }
@@ -225,11 +230,7 @@ impl ElectricPipeline {
     ) {
         rpass.set_pipeline(&self.plate_render_pipeline);
         rpass.set_bind_group(0, &constants_bind_groups.constants, &[]);
-        if self.out_is_buffer_a {
-            rpass.set_bind_group(1, &electric_bind_groups.electric_compute_ab, &[]);
-        } else {
-            rpass.set_bind_group(1, &electric_bind_groups.electric_compute_ba, &[]);
-        }
+        rpass.set_bind_group(1, &electric_bind_groups.electric_compute, &[]);
 
         rpass.draw(0..6, 0..num_plates);
     }
@@ -239,22 +240,14 @@ impl ElectricPipeline {
         rpass: &mut RenderPass<'_>,
         constants_bind_groups: &ConstantsBindGroups,
         electric_bind_groups: &ElectricBindGroups,
-        num_charges: u32,
         max_steps: usize,
-        num_particles_per_charge: u32,
+        total_instances: u32,
     ) {
         rpass.set_pipeline(&self.tracing_render_pipeline);
         rpass.set_bind_group(0, &constants_bind_groups.constants, &[]);
-        if self.out_is_buffer_a {
-            rpass.set_bind_group(1, &electric_bind_groups.electric_compute_ab, &[]);
-        } else {
-            rpass.set_bind_group(1, &electric_bind_groups.electric_compute_ba, &[]);
-        }
+        rpass.set_bind_group(1, &electric_bind_groups.electric_compute, &[]);
 
-        rpass.draw(
-            0..((max_steps as u32 - 1) * 2),
-            0..(num_charges * num_particles_per_charge),
-        );
+        rpass.draw(0..((max_steps as u32 - 1) * 2), 0..total_instances);
     }
 
     pub fn compute_potential(
@@ -266,14 +259,9 @@ impl ElectricPipeline {
     ) {
         cpass.set_pipeline(&self.compute_potential_pipeline);
         cpass.set_bind_group(0, &constants_bind_groups.constants, &[]);
-        if self.out_is_buffer_a {
-            cpass.set_bind_group(1, &electric_bind_groups.electric_compute_ab, &[]);
-        } else {
-            cpass.set_bind_group(1, &electric_bind_groups.electric_compute_ba, &[]);
-        }
+        cpass.set_bind_group(1, &electric_bind_groups.electric_compute, &[]);
 
         cpass.dispatch_workgroups(size.width.div_ceil(16), size.height.div_ceil(16), 1);
-        self.out_is_buffer_a = !self.out_is_buffer_a;
     }
 
     pub fn compute_field(
@@ -285,16 +273,27 @@ impl ElectricPipeline {
     ) {
         cpass.set_pipeline(&self.compute_field_pipeline);
         cpass.set_bind_group(0, &constants_bind_groups.constants, &[]);
-        if self.out_is_buffer_a {
-            cpass.set_bind_group(1, &electric_bind_groups.electric_compute_ab, &[]);
-        } else {
-            cpass.set_bind_group(1, &electric_bind_groups.electric_compute_ba, &[]);
-        }
+        cpass.set_bind_group(1, &electric_bind_groups.electric_compute, &[]);
 
         cpass.dispatch_workgroups(size.width.div_ceil(16), size.height.div_ceil(16), 1);
     }
 
-    pub fn compute_tracing(
+    pub fn compute_tracing_plates(
+        &mut self,
+        cpass: &mut ComputePass<'_>,
+        constants_bind_groups: &ConstantsBindGroups,
+        electric_bind_groups: &ElectricBindGroups,
+        num_plates: u32,
+        num_segments_per_plate: u32,
+    ) {
+        cpass.set_pipeline(&self.compute_plates_tracing_pipeline);
+        cpass.set_bind_group(0, &constants_bind_groups.constants, &[]);
+        cpass.set_bind_group(1, &electric_bind_groups.electric_compute, &[]);
+
+        cpass.dispatch_workgroups((num_plates * num_segments_per_plate).div_ceil(128), 1, 1);
+    }
+
+    pub fn compute_tracing_charges(
         &mut self,
         cpass: &mut ComputePass<'_>,
         constants_bind_groups: &ConstantsBindGroups,
@@ -302,13 +301,9 @@ impl ElectricPipeline {
         num_charges: u32,
         num_particles_per_charge: u32,
     ) {
-        cpass.set_pipeline(&self.compute_tracing_pipeline);
+        cpass.set_pipeline(&self.compute_charges_tracing_pipeline);
         cpass.set_bind_group(0, &constants_bind_groups.constants, &[]);
-        if self.out_is_buffer_a {
-            cpass.set_bind_group(1, &electric_bind_groups.electric_compute_ab, &[]);
-        } else {
-            cpass.set_bind_group(1, &electric_bind_groups.electric_compute_ba, &[]);
-        }
+        cpass.set_bind_group(1, &electric_bind_groups.electric_compute, &[]);
 
         cpass.dispatch_workgroups((num_charges * num_particles_per_charge).div_ceil(128), 1, 1);
     }

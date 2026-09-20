@@ -1,4 +1,5 @@
 use crate::*;
+use shaders_shared::{Condition, MAX_DT, PARTICLE_Q_OVER_M, PX_PER_UNIT, Plate, is_inside};
 
 #[spirv(compute(threads(256), entry_point_name = "particle_cs"))]
 pub fn particle_cs(
@@ -9,6 +10,7 @@ pub fn particle_cs(
     #[spirv(descriptor_set = 1, binding = 1, storage_buffer)] output: &mut [Particle],
     // The charge buffer already present in the electric bind group (bind group 2) at binding 0
     #[spirv(descriptor_set = 2, binding = 0, storage_buffer)] charges: &[Charge],
+    #[spirv(descriptor_set = 2, binding = 1, storage_buffer)] plates: &[Plate],
     #[spirv(descriptor_set = 2, binding = 3, storage_buffer)] electric_field: &mut [Field],
 ) {
     // Extract the index using the invocation id
@@ -45,17 +47,50 @@ pub fn particle_cs(
             return;
         }
 
-        // Calculate the velocity of the particle at its specific point in space & time.
-        let mut velocity = electric_field[index].field;
-        let damping = 1.0 - constants.particle_options.drag_value;
-        velocity[0] *= damping;
-        velocity[1] *= damping;
+        let mut near_plate = false;
+        for plate_idx in 0..constants.num_plates {
+            let plate = plates[plate_idx as usize];
+            let edges = [
+                Vec2::new(plate.edges[0], plate.edges[1]),
+                Vec2::new(plate.edges[2], plate.edges[3]),
+                Vec2::new(plate.edges[4], plate.edges[5]),
+                Vec2::new(plate.edges[6], plate.edges[7]),
+            ];
 
-        // Apply that velocity
-        particle.position[0] += velocity[0] * constants.dt * constants.particle_options.time_scale;
-        particle.position[1] += velocity[1] * constants.dt * constants.particle_options.time_scale;
+            match is_inside(
+                current_pos,
+                edges,
+                constants.particle_options.particle_radius,
+            ) {
+                Condition::Inside | Condition::Boundary => {
+                    near_plate = true;
+                    continue;
+                }
+                _ => (),
+            }
+        }
 
-        // Not to lose data, we create mut var, and we assign whole particle to the output.
+        if near_plate {
+            output[particle_index] = particle;
+            return;
+        }
+
+        let e = Vec2::from(electric_field[index].field);
+        let dt = constants.dt.min(MAX_DT) * constants.particle_options.time_scale;
+
+        // for acceleration:
+        // let mut velocity = Vec2::from(particle.velocity);
+        // velocity += e * (PARTICLE_Q_OVER_M * PX_PER_UNIT) * dt;
+        // velocity += (-constants.particle_options.drag_value * dt).exp();
+
+        // for field = velocity
+        let damping = (-constants.particle_options.drag_value * dt).exp();
+        let velocity = e * (PARTICLE_Q_OVER_M * PX_PER_UNIT) * damping;
+
+        let position = Vec2::from(particle.position) + velocity * dt;
+        particle.velocity = velocity.into();
+        particle.position = position.into();
+
         output[particle_index] = particle;
     }
 }

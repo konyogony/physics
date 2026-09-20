@@ -1,3 +1,5 @@
+use shaders_shared::{Condition, PX_PER_UNIT, SOFTENING, Segment, is_inside};
+
 use crate::*;
 
 #[spirv(compute(threads(16, 16), entry_point_name = "electric_potential_cs"))]
@@ -6,8 +8,8 @@ pub fn electric_potential_cs(
     #[spirv(descriptor_set = 0, binding = 0, uniform)] constants: &ShaderConstants,
     #[spirv(descriptor_set = 1, binding = 0, storage_buffer)] charges: &[Charge],
     #[spirv(descriptor_set = 1, binding = 1, storage_buffer)] plates: &[Plate],
-    #[spirv(descriptor_set = 1, binding = 4, storage_buffer)] input: &[f32],
-    #[spirv(descriptor_set = 1, binding = 5, storage_buffer)] output: &mut [f32],
+    #[spirv(descriptor_set = 1, binding = 2, storage_buffer)] segments: &[Segment],
+    #[spirv(descriptor_set = 1, binding = 5, storage_buffer)] potential: &mut [f32],
 ) {
     let width = constants.width as usize;
     let height = constants.height as usize;
@@ -16,26 +18,11 @@ pub fn electric_potential_cs(
     let y = global_invocation_id.y as usize;
 
     // so we dont run extra times
-    if x >= constants.width as usize || y >= constants.height as usize {
+    if x >= width || y >= height {
         return;
     }
-    // Make sure to clamp and make these numbers safe to work with;
-    let left_x = if x > 0 { x - 1 } else { 0 };
-    let right_x = (x + 1).min(width - 1);
-    let down_y = if y > 0 { y - 1 } else { 0 };
-    let up_y = (y + 1).min(height - 1);
 
     let center = x + y * width;
-    let left = left_x + y * width;
-    let right = right_x + y * width;
-    let down = x + down_y * width;
-    let up = x + up_y * width;
-
-    if x == 0 || x == width - 1 || y == 0 || y == height - 1 {
-        output[center] = 0.0;
-        return;
-    }
-
     let current_coords = Vec2::new(x as f32, y as f32);
 
     // if we are inside any metal plate, get its charge, write and return straight away
@@ -48,51 +35,43 @@ pub fn electric_potential_cs(
             Vec2::new(plate.edges[6], plate.edges[7]),
         ];
 
-        match is_inside(current_coords, edges) {
+        match is_inside(current_coords, edges, 1.0) {
             Condition::Inside | Condition::Boundary => {
-                output[center] = plate.potential * constants.electric_options.charge_strength_scale;
+                potential[center] = plate.potential;
                 return;
             }
             _ => (),
         }
     }
 
-    // for any point outside the metal plate
-    let left_phi = input[left];
-    let right_phi = input[right];
-    let up_phi = input[up];
-    let down_phi = input[down];
+    let current = current_coords / PX_PER_UNIT;
+    let mut phi: f32 = 0.0;
 
-    let sum = left_phi + right_phi + up_phi + down_phi;
-    let average = sum as f32 / 4.0;
+    for segment_idx in 0..constants.num_segments {
+        let segment = segments[segment_idx as usize];
+        let segment_coords = Vec2::from_array(segment.midpoint) / PX_PER_UNIT;
 
-    // Now go through every charge
-    let mut rho = 0.0;
+        let distance = (current - segment_coords).length_squared();
+        phi += segment.solved_charge / (distance + SOFTENING * SOFTENING).sqrt();
+    }
+
     for charge_idx in 0..constants.num_charges {
         let charge = charges[charge_idx as usize];
-        let charge_pos = charge.position;
-        let charge_coords = Vec2::new(charge_pos[0], charge_pos[1]);
-        let charge_charge = charge.charge * constants.electric_options.charge_strength_scale;
+        let charge_coords = Vec2::from_array(charge.position) / PX_PER_UNIT;
 
-        let distance = (current_coords - charge_coords).length();
-        // not really in PX's, so gotta play around with scaling this.
-        let radius = constants.electric_options.charge_radius;
-
-        if distance < radius {
-            rho += charge_charge * (1.0 - distance / radius);
-        }
+        let distance = (current - charge_coords).length_squared();
+        phi += charge.charge / (distance + SOFTENING * SOFTENING).sqrt();
     }
-    let source = rho / (4.0 * constants.epsilon_naught);
 
-    output[center] = average + source;
+    potential[center] = phi;
 }
 
 #[spirv(compute(threads(16, 16), entry_point_name = "electric_field_cs"))]
 pub fn electric_field_cs(
     #[spirv(global_invocation_id)] global_invocation_id: UVec3,
     #[spirv(descriptor_set = 0, binding = 0, uniform)] constants: &ShaderConstants,
-    #[spirv(descriptor_set = 1, binding = 2, storage_buffer)] electric_field: &mut [Field],
-    #[spirv(descriptor_set = 1, binding = 4, storage_buffer)] electric_potential: &[f32],
+    #[spirv(descriptor_set = 1, binding = 3, storage_buffer)] electric_field: &mut [Field],
+    #[spirv(descriptor_set = 1, binding = 5, storage_buffer)] electric_potential: &mut [f32],
 ) {
     let x = global_invocation_id.x as i32;
     let y = global_invocation_id.y as i32;
@@ -112,8 +91,10 @@ pub fn electric_field_cs(
     let up_sample = electric_potential[(x + up_y * constants.width as i32) as usize];
     let down_sample = electric_potential[(x + down_y * constants.width as i32) as usize];
 
-    let d_dx = (right_sample - left_sample) / (2.0 * H as f32);
-    let d_dy = (down_sample - up_sample) / (2.0 * H as f32);
+    let dx_px = (right_x - left_x).max(1) as f32;
+    let dy_px = (down_y - up_y).max(1) as f32;
+    let d_dx = (right_sample - left_sample) / dx_px * PX_PER_UNIT;
+    let d_dy = (down_sample - up_sample) / dy_px * PX_PER_UNIT;
 
     let field = Field {
         field: [-d_dx, -d_dy],
@@ -123,24 +104,19 @@ pub fn electric_field_cs(
     electric_field[index as usize] = field
 }
 
-#[spirv(compute(threads(128), entry_point_name = "electric_tracing_cs"))]
-pub fn electric_tracing_cs(
+#[spirv(compute(threads(128), entry_point_name = "electric_tracing_charges_cs"))]
+pub fn electric_tracing_charges_cs(
     #[spirv(global_invocation_id)] global_invocation_id: UVec3,
     #[spirv(descriptor_set = 0, binding = 0, uniform)] constants: &ShaderConstants,
     #[spirv(descriptor_set = 1, binding = 0, storage_buffer)] charges: &[Charge],
     #[spirv(descriptor_set = 1, binding = 1, storage_buffer)] plates: &[Plate],
-    #[spirv(descriptor_set = 1, binding = 2, storage_buffer)] electric_field: &mut [Field],
-    #[spirv(descriptor_set = 1, binding = 3, storage_buffer)] tracing: &mut [TracePoint],
+    #[spirv(descriptor_set = 1, binding = 3, storage_buffer)] electric_field: &mut [Field],
+    #[spirv(descriptor_set = 1, binding = 4, storage_buffer)] tracing: &mut [TracePoint],
 ) {
     if constants.num_charges == 0 {
         return;
     }
 
-    // we terminate the tracing when:
-    // 1. we leave screen boumdary
-    // 2. we touch metal plate
-    // 3. we touch charge
-    // 4. |E| is approx 0
     let particle_id = global_invocation_id.x as usize;
     let charge_id = particle_id / constants.electric_options.num_particles_per_charge as usize;
 
@@ -170,117 +146,66 @@ pub fn electric_tracing_cs(
         Vec2::new(radius * angle_offset.cos(), radius * angle_offset.sin())
     };
 
-    let mut current_pos = center + local_offset;
+    trace(
+        center + local_offset,
+        tracing,
+        electric_field,
+        plates,
+        charges,
+        constants,
+        particle_id,
+    );
+}
 
-    for step in 0..constants.electric_options.max_steps {
-        let tracing_index =
-            (particle_id as u32 * constants.electric_options.max_steps + step) as usize;
-        tracing[tracing_index].pos = current_pos.into();
-
-        // if we are off-screen
-        if current_pos.x <= 0.0
-            || current_pos.x >= (constants.width - 1) as f32
-            || current_pos.y <= 0.0
-            || current_pos.y >= (constants.height - 1) as f32
-        {
-            fill_from(
-                tracing,
-                particle_id,
-                step,
-                constants.electric_options.max_steps,
-                current_pos,
-            );
-            return;
-        }
-
-        // if we hit plate
-        let mut hit_plate = false;
-        for plate_idx in 0..constants.num_plates {
-            let plate = plates[plate_idx as usize];
-            let edges = [
-                Vec2::new(plate.edges[0], plate.edges[1]),
-                Vec2::new(plate.edges[2], plate.edges[3]),
-                Vec2::new(plate.edges[4], plate.edges[5]),
-                Vec2::new(plate.edges[6], plate.edges[7]),
-            ];
-
-            if is_inside(current_pos, edges) != Condition::Outside {
-                hit_plate = true;
-                break;
-            }
-        }
-
-        if hit_plate {
-            fill_from(
-                tracing,
-                particle_id,
-                step,
-                constants.electric_options.max_steps,
-                current_pos,
-            );
-            return;
-        }
-
-        // if we hit charge
-        let mut hit_charge = false;
-        for charge_idx in 0..constants.num_charges {
-            let charge = charges[charge_idx as usize];
-
-            // only -ve
-            if charge.charge < 0.0 {
-                let charge_pos = charge.position;
-                let charge_coords = Vec2::new(charge_pos[0], charge_pos[1]);
-
-                if (current_pos - charge_coords).length()
-                    <= constants.electric_options.stop_distance
-                {
-                    hit_charge = true;
-                    break;
-                }
-            }
-        }
-
-        if hit_charge {
-            fill_from(
-                tracing,
-                particle_id,
-                step,
-                constants.electric_options.max_steps,
-                current_pos,
-            );
-            return;
-        }
-
-        // if |E| approx 0
-
-        // gotta be small 1.0-3.0
-        let step_size = constants.electric_options.step_size;
-        let (k1, strength1) = sample_field_bilinear(
-            current_pos,
-            electric_field,
-            constants.width as usize,
-            constants.height as usize,
-        );
-
-        if strength1 < 1e-5 {
-            fill_from(
-                tracing,
-                particle_id,
-                step,
-                constants.electric_options.max_steps,
-                current_pos,
-            );
-            return;
-        }
-
-        let mid_pos = current_pos + k1 * step_size * 0.5;
-        let (k2, _strength2) = sample_field_bilinear(
-            mid_pos,
-            electric_field,
-            constants.width as usize,
-            constants.height as usize,
-        );
-
-        current_pos += k2 * step_size;
+#[spirv(compute(threads(128), entry_point_name = "electric_tracing_plates_cs"))]
+pub fn electric_tracing_plates_cs(
+    #[spirv(global_invocation_id)] global_invocation_id: UVec3,
+    #[spirv(descriptor_set = 0, binding = 0, uniform)] constants: &ShaderConstants,
+    #[spirv(descriptor_set = 1, binding = 0, storage_buffer)] charges: &[Charge],
+    #[spirv(descriptor_set = 1, binding = 1, storage_buffer)] plates: &[Plate],
+    #[spirv(descriptor_set = 1, binding = 2, storage_buffer)] segments: &[Segment],
+    #[spirv(descriptor_set = 1, binding = 3, storage_buffer)] electric_field: &mut [Field],
+    #[spirv(descriptor_set = 1, binding = 4, storage_buffer)] tracing: &mut [TracePoint],
+) {
+    if constants.num_segments == 0 {
+        return;
     }
+
+    let segment_idx = global_invocation_id.x as usize;
+    if segment_idx >= constants.num_segments as usize {
+        return;
+    }
+
+    let segment = segments[segment_idx];
+    let midpoint = Vec2::from_array(segment.midpoint);
+
+    let charge_particles =
+        (constants.num_charges * constants.electric_options.num_particles_per_charge) as usize;
+    let particle_id = charge_particles + segment_idx;
+
+    if segment.solved_charge <= 0.0 {
+        fill_from(
+            tracing,
+            particle_id,
+            0,
+            constants.electric_options.max_steps,
+            midpoint,
+        );
+        return;
+    }
+
+    // basically we cant start right from edge since then potential is 0.0, so we gotta offset
+    // slightlyy
+    let normal = Vec2::from_array(segment.normal);
+    let start_pos = midpoint + normal * constants.particle_options.particle_radius / 2.0;
+
+    trace(
+        start_pos,
+        tracing,
+        electric_field,
+        plates,
+        charges,
+        constants,
+        particle_id,
+    );
 }
