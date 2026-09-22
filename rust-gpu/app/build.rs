@@ -35,6 +35,20 @@ pub fn build_shader(path: &str, env: &str) -> anyhow::Result<()> {
 // Turns out we need multiple shaders and cant just pack it all into a single one. Stupid me.
 // This file just builds the shader defined in the shaders/src/lib.rs
 pub fn main() -> anyhow::Result<()> {
+    if std::env::var("CARGO_CFG_TARGET_OS").unwrap_or_default() == "windows" {
+        println!("cargo:rerun-if-changed=assets/icon.ico");
+        let mut res = winresource::WindowsResource::new();
+        res.set_icon("assets/icon.ico");
+        res.set("ProductName", "Electrostatics Simulator");
+        res.set("FileDescription", "Interactive Electrostatics Simulation");
+        res.set("LegalCopyright", "MIT");
+        res.set("CompanyName", "@konyogony");
+
+        if let Err(e) = res.compile() {
+            eprintln!("Failed to compile Windows resource: {e}");
+        }
+    }
+
     build_shader("electric", "ELECTRIC_SHADER_PATH")?;
     build_shader("grid", "GRID_SHADER_PATH")?;
     build_shader("particle", "PARTICLE_SHADER_PATH")?;

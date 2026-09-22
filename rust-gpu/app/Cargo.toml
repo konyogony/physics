@@ -11,20 +11,15 @@ repository.workspace = true
 workspace = true
 
 [dependencies]
-# shader crate
 shaders-shared = { path = "../shaders/shared" }
-
-# API
 wgpu.workspace = true
 pollster.workspace = true
 env_logger.workspace = true
-
-# other
 raw-window-handle.workspace = true
 winit.workspace = true
 anyhow.workspace = true
 bytemuck.workspace = true
-glam.workspace = true
+glam = { workspace = true, features = ["std"] }
 egui = "0.34.2"
 egui-winit = "0.34.2"
 egui-wgpu = "0.34.2"
@@ -34,8 +29,6 @@ strum_macros = "0.28.0"
 nalgebra = "0.35.0"
 
 [build-dependencies]
-# rust-gpu
 cargo-gpu-install.workspace = true
-
-# other
+winresource = "0.1"
 anyhow.workspace = true

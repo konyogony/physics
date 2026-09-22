@@ -7,6 +7,6 @@ edition.workspace = true
 workspace = true
 
 [dependencies]
-spirv-std.workspace = true
-glam.workspace = true
+spirv-std = { workspace = true }
+glam = { workspace = true }
 bytemuck.workspace = true
