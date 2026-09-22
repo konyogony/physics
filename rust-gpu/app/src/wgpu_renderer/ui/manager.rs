@@ -1,16 +1,52 @@
 use crate::wgpu_renderer::ui::UI;
+use egui::Vec2;
 use enum_iterator::Sequence;
+use shaders_shared::Plate;
 use strum_macros::Display;
 use wgpu::{CommandEncoder, Device, Queue, SurfaceConfiguration, TextureFormat};
 use winit::{event::WindowEvent, window::Window};
 
-#[derive(Clone, Copy, PartialEq, Eq, Default, Sequence, Display)]
+#[derive(Clone, Copy, Default, Sequence, Display, PartialEq, Eq)]
 pub enum CurrentTool {
-    #[strum(to_string = "Spawn Test Charge")]
-    Particle,
     #[default]
     #[strum(to_string = "Spawn Charge")]
-    Charge,
+    SpawnCharge,
+    #[strum(to_string = "Spawn Test Charge")]
+    SpawnParticle,
+    #[strum(to_string = "Spawn Metal Plate")]
+    SpawnPlate,
+    #[strum(to_string = "Remove Element")]
+    RemoveItem,
+}
+
+// Basically the last action user has done.
+// e.g. Point3 -> placed point 3
+#[derive(Clone, Copy, Default, Sequence, Display, PartialEq, Eq, Debug)]
+pub enum PlateSpawnStage {
+    #[default]
+    Default,
+    Point1,
+    Point2,
+    Point3,
+    ChoosePotential,
+    Confirmed,
+}
+
+#[derive(Debug, Clone, Default)]
+pub struct PlateSpawnOptions {
+    pub vertices: [Vec2; 4],
+    pub stage: PlateSpawnStage,
+    pub potential: f32,
+}
+
+impl PlateSpawnOptions {
+    pub fn get_plate(&self) -> Plate {
+        Plate {
+            potential: self.potential,
+            edges: bytemuck::cast(self.vertices),
+            _pad: [0.0; 3],
+        }
+    }
 }
 
 #[derive(Clone, Copy, PartialEq)]
@@ -46,7 +82,7 @@ impl Default for InputValues {
                 max_steps: 550,
                 step_size: 3.0,
                 stop_distance: 14.5,
-                charge_strength_scale: 1.0,
+                equipotential_spacing_mv: 1500.0,
                 equipotential_color_rgba: [0.0, 0.545, 0.545, 1.0],
             },
             charge_spawn_ui_options: ChargeSpawnUIOptions {
@@ -102,8 +138,7 @@ pub struct ElectricUIOptions {
     pub max_steps: usize,
     pub step_size: f32,
     pub stop_distance: f32,
-    // TODO: REMVOE
-    pub charge_strength_scale: f32,
+    pub equipotential_spacing_mv: f32,
     pub equipotential_color_rgba: [f32; 4],
 }
 
@@ -115,6 +150,7 @@ pub struct UIManager {
     pub input_values: InputValues,
     pub committed_input_values: InputValues,
     pub clipped_primitives: Vec<egui::ClippedPrimitive>,
+    pub plate_spawn_options: Option<PlateSpawnOptions>,
     // i had issues trusting egui to know if my cursor is over UI, so we will js compute & update
     // value every frame...
     pub pointer_over_ui: bool,
@@ -154,6 +190,42 @@ impl UIManager {
             committed_input_values: InputValues::default(),
             clipped_primitives: Vec::new(),
             pointer_over_ui: false,
+            plate_spawn_options: None,
+        }
+    }
+
+    // every LMB whilst using plate will have to be a different action
+    pub fn plate_action(&mut self, mouse_pos: [f32; 2]) {
+        if self.input_values.tool != CurrentTool::SpawnPlate {
+            self.plate_spawn_options = None;
+        }
+
+        if let Some(ref mut options) = self.plate_spawn_options {
+            match options.stage {
+                PlateSpawnStage::Default => {}
+                PlateSpawnStage::Point1 => {
+                    options.vertices[1] = Vec2::from(mouse_pos);
+                    options.stage = PlateSpawnStage::Point2;
+                }
+                PlateSpawnStage::Point2 => {
+                    options.vertices[2] = Vec2::from(mouse_pos);
+                    options.stage = PlateSpawnStage::Point3;
+                }
+                PlateSpawnStage::Point3 => {
+                    options.vertices[3] = Vec2::from(mouse_pos);
+                    options.stage = PlateSpawnStage::ChoosePotential;
+                }
+                _ => (),
+            }
+        } else {
+            let mut options = PlateSpawnOptions {
+                potential: 0.3,
+                stage: PlateSpawnStage::Default,
+                vertices: [Vec2::ZERO; 4],
+            };
+            options.vertices[0] = Vec2::from(mouse_pos);
+            options.stage = PlateSpawnStage::Point1;
+            self.plate_spawn_options = Some(options);
         }
     }
 
@@ -161,6 +233,8 @@ impl UIManager {
         let mut iter = enum_iterator::all::<CurrentTool>().cycle();
         iter.find(|i| i == &self.input_values.tool);
         self.input_values.tool = iter.next().unwrap_or_default();
+        // reset when we cycle
+        self.plate_spawn_options = None;
     }
 
     pub fn toggle_active(&mut self) {
@@ -199,6 +273,22 @@ impl UIManager {
                 egui::Order::Foreground,
                 egui::Id::new("charge_labels"),
             ));
+
+            if !self.pointer_over_ui {
+                match self.input_values.tool {
+                    CurrentTool::SpawnCharge => UI::draw_charge_preview(
+                        &painter,
+                        self.input_values.electric_ui_options.charge_radius,
+                        self.input_values.charge_spawn_ui_options.charge,
+                    ),
+                    CurrentTool::SpawnPlate => UI::draw_plate_preview(self, &painter, ppp),
+                    CurrentTool::SpawnParticle => UI::draw_particle_preview(
+                        &painter,
+                        self.input_values.particle_ui_options.particle_radius,
+                    ),
+                    _ => (),
+                }
+            }
 
             for (pos, charge) in charges {
                 let screen_pos = egui::pos2(pos.x / ppp, pos.y / ppp);

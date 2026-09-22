@@ -1,12 +1,10 @@
 use crate::wgpu_renderer::keyboard::InputActions;
 use crate::wgpu_renderer::renderer::Renderer;
 use crate::wgpu_renderer::swapchain::SwapchainManager;
-use crate::wgpu_renderer::ui::manager::CurrentTool;
+use crate::wgpu_renderer::ui::manager::{CurrentTool, PlateSpawnStage};
 use crate::wgpu_renderer::{keyboard::Keyboard, mouse::Mouse};
 use anyhow::Context;
-use shaders_shared::{
-    Charge, DrawOptions, ElectricOptions, ParticleOptions, Plate, ShaderConstants,
-};
+use shaders_shared::{DrawOptions, ElectricOptions, ParticleOptions, Plate, ShaderConstants};
 use std::sync::Arc;
 use std::time::Instant;
 use winit::{
@@ -107,34 +105,34 @@ impl State {
         //];
 
         let initial_plates = vec![
-            Plate {
-                edges: [
-                    size.width as f32 / 2.0 - 280.0,
-                    size.height as f32 / 2.0 - 150.0 - 20.0,
-                    size.width as f32 / 2.0 + 280.0,
-                    size.height as f32 / 2.0 - 150.0 - 20.0,
-                    size.width as f32 / 2.0 + 280.0,
-                    size.height as f32 / 2.0 - 150.0 + 20.0,
-                    size.width as f32 / 2.0 - 280.0,
-                    size.height as f32 / 2.0 - 150.0 + 20.0,
-                ],
-                potential: 1.0,
-                _pad: [0.0, 0.0, 0.0],
-            },
-            Plate {
-                edges: [
-                    size.width as f32 / 2.0 - 280.0,
-                    size.height as f32 / 2.0 + 150.0 - 20.0,
-                    size.width as f32 / 2.0 + 280.0,
-                    size.height as f32 / 2.0 + 150.0 - 20.0,
-                    size.width as f32 / 2.0 + 280.0,
-                    size.height as f32 / 2.0 + 150.0 + 20.0,
-                    size.width as f32 / 2.0 - 280.0,
-                    size.height as f32 / 2.0 + 150.0 + 20.0,
-                ],
-                potential: -1.0,
-                _pad: [0.0, 0.0, 0.0],
-            },
+            //Plate {
+            //    edges: [
+            //        size.width as f32 / 2.0 - 280.0,
+            //        size.height as f32 / 2.0 - 150.0 - 20.0,
+            //        size.width as f32 / 2.0 + 280.0,
+            //        size.height as f32 / 2.0 - 150.0 - 20.0,
+            //        size.width as f32 / 2.0 + 280.0,
+            //        size.height as f32 / 2.0 - 150.0 + 20.0,
+            //        size.width as f32 / 2.0 - 280.0,
+            //        size.height as f32 / 2.0 - 150.0 + 20.0,
+            //    ],
+            //    potential: 1.0,
+            //    _pad: [0.0, 0.0, 0.0],
+            //},
+            //Plate {
+            //    edges: [
+            //        size.width as f32 / 2.0 - 280.0,
+            //        size.height as f32 / 2.0 + 150.0 - 20.0,
+            //        size.width as f32 / 2.0 + 280.0,
+            //        size.height as f32 / 2.0 + 150.0 - 20.0,
+            //        size.width as f32 / 2.0 + 280.0,
+            //        size.height as f32 / 2.0 + 150.0 + 20.0,
+            //        size.width as f32 / 2.0 - 280.0,
+            //        size.height as f32 / 2.0 + 150.0 + 20.0,
+            //    ],
+            //    potential: -1.0,
+            //    _pad: [0.0, 0.0, 0.0],
+            //},
         ];
 
         // Create a renderer
@@ -197,36 +195,40 @@ impl State {
 
                 if self.mouse.buttons_state.lmb == ElementState::Pressed {
                     match self.renderer.ui_manager.committed_input_values.tool {
-                        CurrentTool::Charge => self
+                        CurrentTool::SpawnCharge => self
                             .renderer
                             .electric_manager
                             .add_charge(&self.renderer.queue, self.mouse.position),
-                        CurrentTool::Particle => self
+                        CurrentTool::SpawnParticle => self
                             .renderer
                             .particle_manager
                             .add_particle(&self.renderer.queue, self.mouse.position),
+                        CurrentTool::SpawnPlate => {
+                            self.renderer.ui_manager.plate_action(self.mouse.position)
+                        }
+                        _ => (),
                     }
                 }
 
-                if self.mouse.buttons_state.rmb == ElementState::Pressed {
-                    match self.renderer.ui_manager.committed_input_values.tool {
-                        CurrentTool::Charge => self
-                            .renderer
-                            .electric_manager
-                            .remove_charge(&self.renderer.queue, self.mouse.position, Some(100.0))
-                            .is_some(),
-                        CurrentTool::Particle => self
-                            .renderer
-                            .particle_manager
-                            .remove_particle(
-                                &self.renderer.device,
-                                &self.renderer.queue,
-                                self.mouse.position,
-                                Some(100.0),
-                            )
-                            .is_some(),
-                    };
-                }
+                //if self.mouse.buttons_state.rmb == ElementState::Pressed {
+                //    match self.renderer.ui_manager.committed_input_values.tool {
+                //        CurrentTool::Charge => self
+                //            .renderer
+                //            .electric_manager
+                //            .remove_charge(&self.renderer.queue, self.mouse.position, Some(100.0))
+                //            .is_some(),
+                //        CurrentTool::Particle => self
+                //            .renderer
+                //            .particle_manager
+                //            .remove_particle(
+                //                &self.renderer.device,
+                //                &self.renderer.queue,
+                //                self.mouse.position,
+                //                Some(100.0),
+                //            )
+                //            .is_some(),
+                //    };
+                //}
             }
 
             // ESC or CloseRequested exit the event loop
@@ -261,11 +263,6 @@ impl State {
                         .committed_input_values
                         .electric_ui_options
                         .num_particles_per_charge,
-                    //self.renderer
-                    //    .ui_manager
-                    //    .committed_input_values
-                    //    .electric_ui_options
-                    //    .charge_strength,
                 );
 
                 let config = self.swapchain.get_config().unwrap();
@@ -443,6 +440,15 @@ impl State {
             self.renderer
                 .electric_manager
                 .add_charge(&self.renderer.queue, pos);
+        }
+
+        if let Some(ref opts) = self.renderer.ui_manager.plate_spawn_options
+            && opts.stage == PlateSpawnStage::Confirmed
+        {
+            self.renderer
+                .electric_manager
+                .add_plate(&self.renderer.queue, opts.get_plate());
+            self.renderer.ui_manager.plate_spawn_options = None;
         }
 
         // We call the render function, which will give us the view texture

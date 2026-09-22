@@ -63,9 +63,9 @@ impl From<&InputValues> for ElectricOptions {
             max_steps: value.electric_ui_options.max_steps as u32,
             step_size: value.electric_ui_options.step_size,
             stop_distance: value.electric_ui_options.stop_distance,
-            charge_strength_scale: value.electric_ui_options.charge_strength_scale,
-            equipotential_spacing: 0.1,
+            equipotential_spacing: value.electric_ui_options.equipotential_spacing_mv / 1000.0,
             _pad0: 0.0,
+            _pad1: 0.0,
             equipotential_color_rgba: shaders_shared::Color4 {
                 r: value.electric_ui_options.equipotential_color_rgba[0],
                 g: value.electric_ui_options.equipotential_color_rgba[1],

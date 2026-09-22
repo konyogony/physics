@@ -1,10 +1,11 @@
-use shaders_shared::{EPSILON, PX_PER_UNIT};
+use shaders_shared::{Condition, EPSILON, PX_PER_UNIT, Plate, is_inside};
 
 use crate::*;
 
 #[spirv(fragment(entry_point_name = "grid_fs"))]
 pub fn grid_fs(
     #[spirv(descriptor_set = 0, binding = 0, uniform)] constants: &ShaderConstants,
+    #[spirv(descriptor_set = 1, binding = 1, storage_buffer)] plates: &[Plate],
     #[spirv(descriptor_set = 1, binding = 3, storage_buffer)] electric_field: &mut [Field],
     #[spirv(descriptor_set = 1, binding = 5, storage_buffer)] potential_field: &mut [f32],
     #[spirv(frag_coord)] frag_coords: Vec4,
@@ -52,6 +53,7 @@ pub fn grid_fs(
 
     if constants.draw_options.draw_vec == 1 {
         let current_pos = Vec2::new(centered_x, centered_y);
+
         // Drawing the vectors
         let index_x = (current_pos.x / GRID_SPACING_PX).floor();
         let index_y = (current_pos.y / GRID_SPACING_PX).floor();
@@ -61,6 +63,13 @@ pub fn grid_fs(
         } else {
             2
         };
+
+        let max_possible_reach = if constants.draw_options.draw_normalised_vec == 1 {
+            ARROW_SCALE + ARROW_HEAD_HEIGHT_PX + ARROW_THICKNESS_PX
+        } else {
+            GRID_SPACING_PX * 1.8 + ARROW_HEAD_HEIGHT_PX + ARROW_THICKNESS_PX
+        };
+        let max_possible_reach_sq = max_possible_reach * max_possible_reach;
 
         // Basically, now instead of just getting the closest point (index * GRID_SPACING), which
         // will cut off the lines, we will loop through the neughboring points aswell, by adding or
@@ -72,27 +81,55 @@ pub fn grid_fs(
                     index_y * GRID_SPACING_PX + GRID_SPACING_PX * j as f32,
                 );
 
+                let to_pixel = current_pos - start_point;
+                let dist_sq = to_pixel.dot(to_pixel);
+
+                if dist_sq > max_possible_reach_sq {
+                    continue;
+                }
+
                 // Evaluate the ELECTRIC FIELD from the starting point to acquire final pos
                 // (relative to the start pos)
                 // Also convert back to space coordinates, yes looks UGLY i know.
-                let x = ((start_point.x + constants.width as f32 / 2.0) as i32)
-                    .min(constants.width as i32 - 1_i32);
-                let y = ((start_point.y + constants.height as f32 / 2.0) as i32)
-                    .min(constants.height as i32 - 1_i32);
+                let x = (start_point.x + constants.width as f32 / 2.0) as i32;
+                let y = (start_point.y + constants.height as f32 / 2.0) as i32;
 
                 if x < 0 || y < 0 || x >= constants.width as i32 || y >= constants.height as i32 {
                     continue;
                 }
+
+                let world_pos = Vec2::new(
+                    start_point.x + constants.width as f32 / 2.0,
+                    start_point.y + constants.height as f32 / 2.0,
+                );
+
+                let mut inside_plate = false;
+                for plate_idx in 0..constants.num_plates {
+                    let plate = plates[plate_idx as usize];
+                    let edges = [
+                        Vec2::new(plate.edges[0], plate.edges[1]),
+                        Vec2::new(plate.edges[2], plate.edges[3]),
+                        Vec2::new(plate.edges[4], plate.edges[5]),
+                        Vec2::new(plate.edges[6], plate.edges[7]),
+                    ];
+
+                    match is_inside(world_pos, edges, constants.particle_options.particle_radius) {
+                        Condition::Inside | Condition::Boundary => {
+                            inside_plate = true;
+                            break;
+                        }
+                        _ => (),
+                    }
+                }
+
+                if inside_plate {
+                    continue;
+                }
+
                 let index = x + y * constants.width as i32;
                 let field_reading = electric_field[index as usize].field;
                 let vec = Vec2::new(field_reading[0], field_reading[1]);
                 let len = vec.length().max(0.001);
-
-                // Get the unit vector of the vector
-                let dir = vec / len;
-                // Get the the perpendicular direction. (I actually used the 2D rotation matrix to
-                // acquire the coordinates for fun)
-                let perp_dir = Vec2::new(dir.y, -dir.x);
 
                 let arrow_scale = if constants.draw_options.draw_normalised_vec == 1 {
                     ARROW_SCALE
@@ -101,6 +138,28 @@ pub fn grid_fs(
                     // cannot be larger than 2 squares, but 0.8 so we can account for the tip
                     raw.min(GRID_SPACING_PX * 1.8)
                 };
+
+                let head_reach = ARROW_HEAD_HEIGHT_PX.max(ARROW_HEAD_WIDTH_PX);
+                let actual_reach = arrow_scale + head_reach + ARROW_THICKNESS_PX;
+                if dist_sq > actual_reach * actual_reach {
+                    continue;
+                }
+
+                // Get the unit vector of the vector
+                let dir = vec / len;
+                // Get the the perpendicular direction. (I actually used the 2D rotation matrix to
+                // acquire the coordinates for fun)
+                let perp_dir = Vec2::new(dir.y, -dir.x);
+
+                let forward = to_pixel.dot(dir);
+                if forward < -ARROW_THICKNESS_PX || forward > actual_reach {
+                    continue;
+                }
+
+                let lateral = to_pixel.dot(perp_dir).abs();
+                if lateral > (ARROW_HEAD_WIDTH_PX + ARROW_THICKNESS_PX) {
+                    continue;
+                }
 
                 // Now actually bring this vec to the correct position in space
                 // Make sure its normalized and the correct scaling is applied
@@ -133,7 +192,7 @@ pub fn grid_fs(
                 let triangle_alpha = antialias_no_fwidth(triangle_sdf, ARROW_THICKNESS_PX);
 
                 *output = output.lerp(color, line_alpha);
-                *output = output.lerp(color, triangle_alpha)
+                *output = output.lerp(color, triangle_alpha);
             }
         }
     }
@@ -158,10 +217,12 @@ pub fn grid_fs(
             let d_phi = (phi - (phi / spacing).round() * spacing).abs();
 
             let dist_px = d_phi / e_len * PX_PER_UNIT;
-            let pitch_px = spacing / e_len * PX_PER_UNIT;
 
-            let alpha = antialias_no_fwidth(dist_px, 1.0) * smoothstep(2.0, 6.0, pitch_px);
-            *output = output.lerp(color, alpha);
+            let alpha = (1.0 - (dist_px - 1.5 * 0.5).max(0.0) / 0.5).clamp(0.0, 1.0);
+
+            if alpha > 0.0 {
+                *output = output.lerp(color, alpha * color.w);
+            }
         }
     }
 }

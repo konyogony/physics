@@ -1,9 +1,10 @@
 use shaders_shared::ShaderConstants;
 use wgpu::{
     BindGroup, BindGroupDescriptor, BindGroupEntry, BindGroupLayout, BindGroupLayoutDescriptor,
-    BindGroupLayoutEntry, BindingResource, BindingType, Buffer, BufferBinding, Device,
+    BindGroupLayoutEntry, BindingResource, BindingType, Buffer, BufferBinding, Device, Queue,
     ShaderStages,
     util::{BufferInitDescriptor, DeviceExt},
+    wgc::device::queue,
 };
 
 /*
@@ -46,6 +47,19 @@ impl ConstantsBindGroupsLayout {
         });
 
         Self { constants }
+    }
+
+    pub fn update_constants_uniform_buffer(
+        &self,
+        queue: &Queue,
+        constants_buffer: &ConstantsBuffers,
+        shader_constants: &ShaderConstants,
+    ) {
+        queue.write_buffer(
+            &constants_buffer.constants,
+            0,
+            bytemuck::bytes_of(shader_constants),
+        );
     }
 
     pub fn create_constant_uniform_buffers(

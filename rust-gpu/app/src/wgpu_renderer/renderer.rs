@@ -1,5 +1,6 @@
 #![allow(clippy::too_many_arguments)]
 use crate::wgpu_renderer::bind_groups::GlobalBindGroupLayout;
+use crate::wgpu_renderer::bind_groups::constants::{ConstantsBindGroups, ConstantsBuffers};
 use crate::wgpu_renderer::managers::electric::ElectricManager;
 use crate::wgpu_renderer::managers::particle::ParticleManager;
 use crate::wgpu_renderer::pipelines::electric::ElectricPipeline;
@@ -28,6 +29,8 @@ pub struct Renderer {
     pub electric_manager: ElectricManager,
     pub particle_manager: ParticleManager,
     pub ui_manager: UIManager,
+    constants_buffer: ConstantsBuffers,
+    constants_bind_groups: ConstantsBindGroups,
 }
 
 impl Renderer {
@@ -72,6 +75,15 @@ impl Renderer {
 
         let ui_manager = UIManager::new(window, &device, &config, out_format);
 
+        // create empty buffer, but only once.
+        let constants_buffer = global_bind_group_layout
+            .constants
+            .create_constant_uniform_buffers(&device, &bytemuck::Zeroable::zeroed());
+
+        let constants_bind_groups = global_bind_group_layout
+            .constants
+            .create_constant_bind_groups(&device, &constants_buffer);
+
         // Pass it in
         Ok(Self {
             global_bind_group_layout,
@@ -83,6 +95,8 @@ impl Renderer {
             ui_manager,
             device,
             queue,
+            constants_buffer,
+            constants_bind_groups,
         })
     }
 
@@ -95,22 +109,18 @@ impl Renderer {
         shader_constants: &ShaderConstants,
         output: TextureView,
     ) -> anyhow::Result<()> {
-        // Create a bind group by passing it the shader consnats
-        // TODO: Make this not re-create itself 1000 times.
-        let constant_buffer = self
-            .global_bind_group_layout
+        self.global_bind_group_layout
             .constants
-            .create_constant_uniform_buffers(&self.device, shader_constants);
+            .update_constants_uniform_buffer(&self.queue, &self.constants_buffer, shader_constants);
+        let constants_bind_groups = self.constants_bind_groups.clone();
 
-        let constant_bind_groups = self
-            .global_bind_group_layout
-            .constants
-            .create_constant_bind_groups(&self.device, &constant_buffer);
-
-        self.electric_manager
+        let capacity_grew = self
+            .electric_manager
             .ensure_tracing_capacity(&self.device, &self.global_bind_group_layout.electric);
 
         self.electric_manager.solve_for_charges(&self.queue);
+
+        let need_field_update = self.electric_manager.field_dirty || capacity_grew;
 
         // Create a command encoder, responsible for drawing the stuff
         // Shared between both compute & render pass
@@ -120,57 +130,67 @@ impl Renderer {
                 label: Some("MainCMDEncoder"),
             });
 
-        // First we have to go through all the pipelies that have a compute pass
+        if need_field_update {
+            // First we have to go through all the pipelies that have a compute pass
+            let mut cpass = cmd_encoder.begin_compute_pass(&ComputePassDescriptor {
+                label: Some("FieldComputePass"),
+                timestamp_writes: None,
+            });
+
+            self.electric_pipeline.compute_potential(
+                &mut cpass,
+                &constants_bind_groups,
+                &self.electric_manager.electric_bind_groups,
+                self.electric_manager.size,
+            );
+            drop(cpass);
+
+            let mut cpass = cmd_encoder.begin_compute_pass(&ComputePassDescriptor {
+                label: Some("SecondComputePass"),
+                timestamp_writes: None,
+            });
+
+            self.electric_pipeline.compute_field(
+                &mut cpass,
+                &constants_bind_groups,
+                &self.electric_manager.electric_bind_groups,
+                self.electric_manager.size,
+            );
+
+            self.electric_pipeline.compute_tracing_plates(
+                &mut cpass,
+                &constants_bind_groups,
+                &self.electric_manager.electric_bind_groups,
+                self.electric_manager.plates.len() as u32,
+                SEGMENTS_PER_PLATE,
+            );
+
+            self.electric_pipeline.compute_tracing_charges(
+                &mut cpass,
+                &constants_bind_groups,
+                &self.electric_manager.electric_bind_groups,
+                self.electric_manager.charges.len() as u32,
+                self.electric_manager.num_particles_per_charge,
+            );
+
+            // Dont forget to drop after each pass
+            drop(cpass);
+            self.electric_manager.field_dirty = false;
+        }
+
         let mut cpass = cmd_encoder.begin_compute_pass(&ComputePassDescriptor {
-            label: Some("FirstComputePass"),
+            label: Some("ParticleComputePass"),
             timestamp_writes: None,
         });
-
-        self.electric_pipeline.compute_potential(
-            &mut cpass,
-            &constant_bind_groups,
-            &self.electric_manager.electric_bind_groups,
-            self.electric_manager.size,
-        );
-        drop(cpass);
-
-        let mut cpass = cmd_encoder.begin_compute_pass(&ComputePassDescriptor {
-            label: Some("SecondComputePass"),
-            timestamp_writes: None,
-        });
-
-        self.electric_pipeline.compute_field(
-            &mut cpass,
-            &constant_bind_groups,
-            &self.electric_manager.electric_bind_groups,
-            self.electric_manager.size,
-        );
-
-        self.electric_pipeline.compute_tracing_plates(
-            &mut cpass,
-            &constant_bind_groups,
-            &self.electric_manager.electric_bind_groups,
-            self.electric_manager.plates.len() as u32,
-            SEGMENTS_PER_PLATE,
-        );
-
-        self.electric_pipeline.compute_tracing_charges(
-            &mut cpass,
-            &constant_bind_groups,
-            &self.electric_manager.electric_bind_groups,
-            self.electric_manager.charges.len() as u32,
-            self.electric_manager.num_particles_per_charge,
-        );
 
         self.particle_pipeline.compute(
             &mut cpass,
-            &constant_bind_groups,
+            &constants_bind_groups,
             &self.particle_manager.particle_bind_groups,
             &self.electric_manager.electric_bind_groups,
             self.particle_manager.current_num_of_particles,
         );
 
-        // Dont forget to drop after each pass
         drop(cpass);
 
         let labels: Vec<(egui::Pos2, f32)> = self
@@ -215,13 +235,13 @@ impl Renderer {
         // Draw it using our pipeline we created.
         self.grid_pipeline.draw(
             &mut rpass,
-            &constant_bind_groups,
+            &constants_bind_groups,
             &self.electric_manager.electric_bind_groups,
         );
 
         self.particle_pipeline.draw(
             &mut rpass,
-            &constant_bind_groups,
+            &constants_bind_groups,
             &self.particle_manager.particle_bind_groups,
             self.particle_manager.current_num_of_particles,
             self.ui_manager
@@ -232,7 +252,7 @@ impl Renderer {
 
         self.electric_pipeline.draw_charge(
             &mut rpass,
-            &constant_bind_groups,
+            &constants_bind_groups,
             &self.electric_manager.electric_bind_groups,
             self.electric_manager.charges.len() as u32,
             self.ui_manager
@@ -243,7 +263,7 @@ impl Renderer {
 
         self.electric_pipeline.draw_plates(
             &mut rpass,
-            &constant_bind_groups,
+            &constants_bind_groups,
             &self.electric_manager.electric_bind_groups,
             self.electric_manager.plates.len() as u32,
         );
@@ -254,7 +274,7 @@ impl Renderer {
 
         self.electric_pipeline.draw_tracing(
             &mut rpass,
-            &constant_bind_groups,
+            &constants_bind_groups,
             &self.electric_manager.electric_bind_groups,
             self.electric_manager.max_steps,
             total_instances,

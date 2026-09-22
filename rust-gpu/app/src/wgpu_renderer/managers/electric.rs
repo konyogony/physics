@@ -34,6 +34,7 @@ pub struct ElectricManager {
     pub electric_bind_groups: ElectricBindGroups,
     pub size: PhysicalSize<u32>,
     pub tracing_capacity_size: usize,
+    pub field_dirty: bool,
 }
 
 impl ElectricManager {
@@ -87,6 +88,7 @@ impl ElectricManager {
             electric_storage_buffers,
             size,
             tracing_capacity_size,
+            field_dirty: true,
         }
     }
 
@@ -146,6 +148,7 @@ impl ElectricManager {
         self.max_steps = max_steps;
         self.num_particles_per_charge = num_particles_per_charge;
         self.segments_dirty = true;
+        self.field_dirty = true;
     }
 
     pub fn ensure_tracing_capacity(
@@ -185,6 +188,7 @@ impl ElectricManager {
             bind_group_layout.create_electric_bind_groups(device, &self.electric_storage_buffers);
 
         self.tracing_capacity_size = new_capacity;
+        self.field_dirty = true;
         true
     }
 
@@ -230,7 +234,25 @@ impl ElectricManager {
         }
 
         self.segments_dirty = true;
+        self.field_dirty = true;
         Some(removed)
+    }
+
+    pub fn add_plate(&mut self, queue: &Queue, plate: Plate) {
+        if self.plates.len() >= MAX_PLATES as usize {
+            return;
+        }
+
+        let offset = (self.plates.len() * std::mem::size_of::<Plate>()) as u64;
+        let data = bytemuck::bytes_of(&plate);
+
+        queue.write_buffer(&self.electric_storage_buffers.plates, offset, data);
+        self.plates.push(plate);
+
+        self.segments = Self::generate_segments(self.plates.clone(), SEGMENTS_PER_PLATE as u64);
+
+        self.segments_dirty = true;
+        self.field_dirty = true;
     }
 
     pub fn add_charge(&mut self, queue: &Queue, position: [f32; 2]) {
@@ -251,6 +273,7 @@ impl ElectricManager {
         queue.write_buffer(&self.electric_storage_buffers.charges, offset, data);
         self.charges.push(charge);
         self.segments_dirty = true;
+        self.field_dirty = true;
     }
 
     pub fn set_next_charge(&mut self, next_value: f32) {
@@ -264,6 +287,7 @@ impl ElectricManager {
     pub fn remove_all_charges(&mut self) {
         self.charges = Vec::new();
         self.segments_dirty = true;
+        self.field_dirty = true;
     }
 
     // Plates & Segments
@@ -433,6 +457,7 @@ impl ElectricManager {
                 0,
                 bytemuck::cast_slice(&self.segments),
             );
+            self.field_dirty = true;
         } else {
             eprintln!("BEM linear system was singular or ill-conditioned");
         }

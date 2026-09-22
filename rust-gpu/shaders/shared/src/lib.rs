@@ -112,10 +112,10 @@ pub struct ElectricOptions {
     pub max_steps: u32,
     pub step_size: f32,
     pub stop_distance: f32,
-    pub charge_strength_scale: f32,
     pub equipotential_spacing: f32,
     //  cannot use arrays to pad uniform buffers
     pub _pad0: f32,
+    pub _pad1: f32,
     pub equipotential_color_rgba: Color4,
 }
 
