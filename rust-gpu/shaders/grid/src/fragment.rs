@@ -1,5 +1,8 @@
 use glam::Vec3;
-use shaders_shared::{Condition, EPSILON, PX_PER_UNIT, Plate, is_inside};
+use shaders_shared::{
+    Condition, EPSILON, PLATE_OUTLINE_PX, PX_PER_UNIT, Plate, is_inside, plate_color,
+    plate_signed_dist,
+};
 const MIN_POTENTIAL_THRESHOLD: f32 = 0.05;
 
 use crate::*;
@@ -282,6 +285,30 @@ pub fn grid_fs(
             if alpha > 0.0 {
                 *output = output.lerp(color, alpha * color.w);
             }
+        }
+    }
+
+    // border
+    let p = Vec2::new(px_x, px_y);
+    for plate_idx in 0..constants.num_plates {
+        let plate = plates[plate_idx as usize];
+        let edges = [
+            Vec2::new(plate.edges[0], plate.edges[1]),
+            Vec2::new(plate.edges[2], plate.edges[3]),
+            Vec2::new(plate.edges[4], plate.edges[5]),
+            Vec2::new(plate.edges[6], plate.edges[7]),
+        ];
+        let d = plate_signed_dist(p, edges);
+
+        let fill = smoothstep(-0.5, 0.5, d);
+        if fill > 0.0 {
+            *output = output.lerp(plate_color(plate.potential).extend(1.0), fill);
+        }
+
+        let half = PLATE_OUTLINE_PX * 0.5;
+        let stroke = 1.0 - smoothstep(half - 0.5, half + 0.5, (d + half).abs());
+        if stroke > 0.0 {
+            *output = output.lerp(Vec4::new(0.0, 0.0, 0.0, 1.0), stroke);
         }
     }
 }

@@ -206,7 +206,24 @@ impl State {
                         CurrentTool::SpawnPlate => {
                             self.renderer.ui_manager.plate_action(self.mouse.position)
                         }
-                        _ => (),
+                        CurrentTool::RemoveItem => {
+                            self.renderer.electric_manager.remove_charge(
+                                &self.renderer.queue,
+                                self.mouse.position,
+                                Some(100.0),
+                            );
+                            self.renderer.particle_manager.remove_particle(
+                                &self.renderer.device,
+                                &self.renderer.queue,
+                                self.mouse.position,
+                                Some(100.0),
+                            );
+                            self.renderer.electric_manager.remove_plate(
+                                &self.renderer.queue,
+                                self.mouse.position,
+                                Some(100.0),
+                            );
+                        }
                     }
                 }
 

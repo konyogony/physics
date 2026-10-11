@@ -74,12 +74,7 @@ pub fn electric_plates_vs(
     );
 
     *vtx_pos = pos_uv.extend(0.0).extend(1.0);
-
-    if plate.potential < 0.0 {
-        *vtx_color = Vec3::new(0.30, 0.48, 0.62);
-    } else {
-        *vtx_color = Vec3::new(0.80, 0.42, 0.28);
-    }
+    *vtx_color = shaders_shared::plate_color(plate.potential);
 }
 
 #[spirv(vertex(entry_point_name = "electric_tracing_vs"))]

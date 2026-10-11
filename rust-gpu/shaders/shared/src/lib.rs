@@ -43,6 +43,7 @@ pub const BEM_WIRE_RADIUS: f32 = 0.05;
 pub const PARTICLE_Q_OVER_M: f32 = 1.0;
 pub const MAX_DT: f32 = 1.0 / 30.0;
 pub const EPSILON: f32 = 1e-5;
+pub const PLATE_OUTLINE_PX: f32 = 2.0;
 
 #[derive(Debug, Clone, Copy, Zeroable, Pod)]
 #[repr(C)]
@@ -127,34 +128,39 @@ pub enum Condition {
     Boundary = 2,
 }
 
-pub fn is_inside(point: Vec2, vertices: [Vec2; 4], margin: f32) -> Condition {
+pub fn plate_color(potential: f32) -> Vec3 {
+    if potential < 0.0 {
+        Vec3::new(0.30, 0.48, 0.62)
+    } else {
+        Vec3::new(0.80, 0.42, 0.28)
+    }
+}
+
+pub fn plate_signed_dist(point: Vec2, vertices: [Vec2; 4]) -> f32 {
     let winding = {
         let cross = (vertices[1] - vertices[0]).perp_dot(vertices[2] - vertices[0]);
         if cross < 0.0 { -1.0 } else { 1.0 }
     };
     let mut min_signed_dist = f32::MAX;
-
     for i in 0..4 {
         let a = vertices[i];
         let b = vertices[(i + 1) % 4];
-
         let edge = b - a;
         let edge_len = edge.length();
-
         if edge_len < EPSILON {
             continue;
         }
-
-        let to_p = point - a;
-
-        let dist = (edge.perp_dot(to_p) / edge_len) * winding;
-
+        let dist = (edge.perp_dot(point - a) / edge_len) * winding;
         min_signed_dist = min_signed_dist.min(dist);
     }
+    min_signed_dist
+}
 
-    if min_signed_dist > margin {
+pub fn is_inside(point: Vec2, vertices: [Vec2; 4], margin: f32) -> Condition {
+    let d = plate_signed_dist(point, vertices);
+    if d > margin {
         Condition::Inside
-    } else if min_signed_dist >= -margin {
+    } else if d >= -margin {
         Condition::Boundary
     } else {
         Condition::Outside

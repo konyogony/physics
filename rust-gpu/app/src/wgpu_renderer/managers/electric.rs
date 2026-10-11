@@ -464,4 +464,103 @@ impl ElectricManager {
 
         self.segments_dirty = false;
     }
+
+    pub fn remove_plate(
+        &mut self,
+        queue: &Queue,
+        position: [f32; 2],
+        max_distance: Option<f32>,
+    ) -> Option<Plate> {
+        if self.plates.is_empty() {
+            return None;
+        }
+
+        let p = glam::Vec2::new(position[0], position[1]);
+
+        let (closest_idx, (min_dist_sq, _)) = self
+            .plates
+            .iter()
+            .enumerate()
+            .map(|(idx, plate)| {
+                let verts = [
+                    glam::Vec2::new(plate.edges[0], plate.edges[1]),
+                    glam::Vec2::new(plate.edges[2], plate.edges[3]),
+                    glam::Vec2::new(plate.edges[4], plate.edges[5]),
+                    glam::Vec2::new(plate.edges[6], plate.edges[7]),
+                ];
+
+                let mut inside = false;
+                let mut j = 3;
+                for i in 0..4 {
+                    let pi = verts[i];
+                    let pj = verts[j];
+                    if ((pi.y > p.y) != (pj.y > p.y))
+                        && (p.x < (pj.x - pi.x) * (p.y - pi.y) / (pj.y - pi.y) + pi.x)
+                    {
+                        inside = !inside;
+                    }
+                    j = i;
+                }
+
+                let center = (verts[0] + verts[1] + verts[2] + verts[3]) * 0.25;
+                let center_dist_sq = (p - center).length_squared();
+
+                let dist_sq = if inside {
+                    0.0
+                } else {
+                    let mut min_edge_sq = f32::MAX;
+                    let edges = [
+                        (verts[0], verts[1]),
+                        (verts[1], verts[2]),
+                        (verts[2], verts[3]),
+                        (verts[3], verts[0]),
+                    ];
+
+                    for (a, b) in edges {
+                        let ab = b - a;
+                        let ap = p - a;
+                        let len_sq = ab.length_squared();
+                        let d_sq = if len_sq <= f32::EPSILON {
+                            ap.length_squared()
+                        } else {
+                            let t = (ap.dot(ab) / len_sq).clamp(0.0, 1.0);
+                            let proj = a + ab * t;
+                            (p - proj).length_squared()
+                        };
+                        min_edge_sq = min_edge_sq.min(d_sq);
+                    }
+
+                    min_edge_sq
+                };
+
+                (idx, (dist_sq, center_dist_sq))
+            })
+            .min_by(|a, b| {
+                a.1.0
+                    .total_cmp(&b.1.0)
+                    .then_with(|| a.1.1.total_cmp(&b.1.1))
+            })?;
+
+        if let Some(max_dist) = max_distance
+            && min_dist_sq > max_dist * max_dist
+        {
+            return None;
+        }
+
+        let removed = self.plates.swap_remove(closest_idx);
+
+        if !self.plates.is_empty() {
+            queue.write_buffer(
+                &self.electric_storage_buffers.plates,
+                0,
+                bytemuck::cast_slice(&self.plates),
+            );
+        }
+
+        self.segments = Self::generate_segments(self.plates.clone(), SEGMENTS_PER_PLATE as u64);
+        self.segments_dirty = true;
+        self.field_dirty = true;
+
+        Some(removed)
+    }
 }
