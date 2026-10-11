@@ -93,6 +93,7 @@ impl Default for InputValues {
                 charge: 1.0,
                 spawn: false,
                 clear_charges: false,
+                clear_plates: false,
             },
             tool: CurrentTool::default(),
             color_value: 0.1,
@@ -133,6 +134,7 @@ pub struct ChargeSpawnUIOptions {
     pub charge: f32,
     pub spawn: bool,
     pub clear_charges: bool,
+    pub clear_plates: bool,
 }
 
 #[derive(Default, Clone, Copy, PartialEq)]

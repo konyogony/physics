@@ -290,6 +290,19 @@ impl ElectricManager {
         self.field_dirty = true;
     }
 
+    pub fn remove_all_plates(&mut self, queue: &Queue) {
+        self.plates = Vec::new();
+        self.segments = Vec::new();
+        self.segments_dirty = true;
+        self.field_dirty = true;
+
+        queue.write_buffer(
+            &self.electric_storage_buffers.plates,
+            0,
+            bytemuck::cast_slice(&self.plates),
+        );
+    }
+
     // Plates & Segments
 
     pub fn generate_segments(plates: Vec<Plate>, segment_per_plate: u64) -> Vec<Segment> {

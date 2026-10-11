@@ -4,7 +4,7 @@ use crate::wgpu_renderer::swapchain::SwapchainManager;
 use crate::wgpu_renderer::ui::manager::{CurrentTool, PlateSpawnStage};
 use crate::wgpu_renderer::{keyboard::Keyboard, mouse::Mouse};
 use anyhow::Context;
-use shaders_shared::{DrawOptions, ElectricOptions, ParticleOptions, Plate, ShaderConstants};
+use shaders_shared::{DrawOptions, ElectricOptions, ParticleOptions, ShaderConstants};
 use std::sync::Arc;
 use std::time::Instant;
 use winit::{
@@ -206,6 +206,7 @@ impl State {
                         CurrentTool::SpawnPlate => {
                             self.renderer.ui_manager.plate_action(self.mouse.position)
                         }
+                        // basically go through all items and delete in radius of 100px
                         CurrentTool::RemoveItem => {
                             self.renderer.electric_manager.remove_charge(
                                 &self.renderer.queue,
@@ -332,7 +333,6 @@ impl State {
         if input_actions.remove_charges {
             self.renderer.electric_manager.remove_all_charges();
         }
-
         if input_actions.toggle_charge {
             self.renderer.electric_manager.toggle_charge();
             self.renderer
@@ -421,6 +421,23 @@ impl State {
                 .charge_spawn_ui_options
                 .clear_charges = false;
             self.renderer.electric_manager.remove_all_charges();
+        }
+
+        if self
+            .renderer
+            .ui_manager
+            .input_values
+            .charge_spawn_ui_options
+            .clear_plates
+        {
+            self.renderer
+                .ui_manager
+                .input_values
+                .charge_spawn_ui_options
+                .clear_plates = false;
+            self.renderer
+                .electric_manager
+                .remove_all_plates(&self.renderer.queue);
         }
 
         if self

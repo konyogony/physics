@@ -97,6 +97,11 @@ impl UI {
                 );
                 self.button_toggle(
                     ui,
+                    &mut manager.input_values.charge_spawn_ui_options.clear_plates,
+                    "Remove all Plates",
+                );
+                self.button_toggle(
+                    ui,
                     &mut manager.input_values.particle_ui_options.clear_particles,
                     "Remove all particles",
                 );
