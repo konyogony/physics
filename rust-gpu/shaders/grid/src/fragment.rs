@@ -1,4 +1,6 @@
+use glam::Vec3;
 use shaders_shared::{Condition, EPSILON, PX_PER_UNIT, Plate, is_inside};
+const MIN_POTENTIAL_THRESHOLD: f32 = 0.05;
 
 use crate::*;
 
@@ -26,16 +28,18 @@ pub fn grid_fs(
         let output_color = BG_COLOR.xyz();
 
         // Get how many times spacing wraps.
-        let grid_distance_x = (centered_x % GRID_SPACING_PX).abs();
-        let grid_distance_y = (centered_y % GRID_SPACING_PX).abs();
+        let grid_distance_x = (centered_x % constants.draw_options.grid_spacing).abs();
+        let grid_distance_y = (centered_y % constants.draw_options.grid_spacing).abs();
         // Get closest one
         let grid_distance = grid_distance_x.min(grid_distance_y);
         // Make sure lines dont look ugly and appear on all screen sizes.
         let grid_alpha = antialias(grid_distance, GRID_THICKNESS_PX);
 
         // Same for highlights, but different scale
-        let highlight_distance_x = (centered_x % (GRID_SPACING_PX * HIGHLIGHT_SQUARES)).abs();
-        let highlight_distance_y = (centered_y % (GRID_SPACING_PX * HIGHLIGHT_SQUARES)).abs();
+        let highlight_distance_x =
+            (centered_x % (constants.draw_options.grid_spacing * HIGHLIGHT_SQUARES)).abs();
+        let highlight_distance_y =
+            (centered_y % (constants.draw_options.grid_spacing * HIGHLIGHT_SQUARES)).abs();
         let highlight_distance = highlight_distance_x.min(highlight_distance_y);
         let highlight_alpha = antialias(highlight_distance, GRID_THICKNESS_PX);
 
@@ -51,13 +55,66 @@ pub fn grid_fs(
             .extend(1.0);
     }
 
+    if constants.draw_options.draw_null_points == 1 {
+        let x = px_x.floor() as i32;
+        let y = px_y.floor() as i32;
+
+        if x > 0 && y > 0 && x < constants.width as i32 && y < constants.height as i32 {
+            let index = (x + y * constants.width as i32) as usize;
+            if index < electric_field.len() && index < potential_field.len() {
+                let world_pos = Vec2::new(px_x, px_y);
+
+                let mut inside_plate = false;
+                for plate_idx in 0..constants.num_plates {
+                    let plate = plates[plate_idx as usize];
+                    let edges = [
+                        Vec2::new(plate.edges[0], plate.edges[1]),
+                        Vec2::new(plate.edges[2], plate.edges[3]),
+                        Vec2::new(plate.edges[4], plate.edges[5]),
+                        Vec2::new(plate.edges[6], plate.edges[7]),
+                    ];
+
+                    match is_inside(world_pos, edges, constants.particle_options.particle_radius) {
+                        Condition::Inside | Condition::Boundary => {
+                            inside_plate = true;
+                            break;
+                        }
+                        _ => (),
+                    }
+                }
+
+                if !inside_plate {
+                    let field = Vec2::from(electric_field[index as usize].field);
+                    let len = field.length();
+                    let phi = potential_field[index].abs();
+
+                    if phi > MIN_POTENTIAL_THRESHOLD {
+                        let factor = smoothstep(0.12, 0.01, len);
+
+                        if factor > 0.0 {
+                            let color1 = Vec3::new(0.00, 0.75, 1.00);
+                            let color2 = Vec3::new(0.85, 1.00, 0.95);
+                            let base_alpha = 0.60;
+                            let glow_rgb = color1.lerp(color2, factor * factor);
+                            let alpha = factor * base_alpha;
+
+                            *output = output.lerp(glow_rgb.extend(1.0), alpha);
+                        }
+                    }
+                }
+            }
+        }
+    }
+
     if constants.draw_options.draw_vec == 1 {
         let current_pos = Vec2::new(centered_x, centered_y);
 
         // Drawing the vectors
-        let index_x = (current_pos.x / GRID_SPACING_PX).floor();
-        let index_y = (current_pos.y / GRID_SPACING_PX).floor();
+        let index_x = (current_pos.x / constants.draw_options.grid_spacing).round();
+        let index_y = (current_pos.y / constants.draw_options.grid_spacing).round();
 
+        // basically, this is not TRUE coverage, but at a certain point, covering all the arrows in
+        // the possible reach, is js not useful & costs alot
         let coverage = if constants.draw_options.draw_normalised_vec == 1 {
             1
         } else {
@@ -67,7 +124,7 @@ pub fn grid_fs(
         let max_possible_reach = if constants.draw_options.draw_normalised_vec == 1 {
             ARROW_SCALE + ARROW_HEAD_HEIGHT_PX + ARROW_THICKNESS_PX
         } else {
-            GRID_SPACING_PX * 1.8 + ARROW_HEAD_HEIGHT_PX + ARROW_THICKNESS_PX
+            constants.draw_options.grid_spacing * 1.8 + ARROW_HEAD_HEIGHT_PX + ARROW_THICKNESS_PX
         };
         let max_possible_reach_sq = max_possible_reach * max_possible_reach;
 
@@ -77,8 +134,10 @@ pub fn grid_fs(
         for i in -(coverage)..=(coverage) {
             for j in -(coverage)..=(coverage) {
                 let start_point = Vec2::new(
-                    index_x * GRID_SPACING_PX + GRID_SPACING_PX * i as f32,
-                    index_y * GRID_SPACING_PX + GRID_SPACING_PX * j as f32,
+                    index_x * constants.draw_options.grid_spacing
+                        + constants.draw_options.grid_spacing * i as f32,
+                    index_y * constants.draw_options.grid_spacing
+                        + constants.draw_options.grid_spacing * j as f32,
                 );
 
                 let to_pixel = current_pos - start_point;
@@ -91,10 +150,10 @@ pub fn grid_fs(
                 // Evaluate the ELECTRIC FIELD from the starting point to acquire final pos
                 // (relative to the start pos)
                 // Also convert back to space coordinates, yes looks UGLY i know.
-                let x = (start_point.x + constants.width as f32 / 2.0) as i32;
-                let y = (start_point.y + constants.height as f32 / 2.0) as i32;
+                let x = (start_point.x + constants.width as f32 / 2.0).round() as i32;
+                let y = (start_point.y + constants.height as f32 / 2.0).round() as i32;
 
-                if x < 0 || y < 0 || x >= constants.width as i32 || y >= constants.height as i32 {
+                if x < 0 || y < 0 || x > constants.width as i32 || y > constants.height as i32 {
                     continue;
                 }
 
@@ -136,7 +195,7 @@ pub fn grid_fs(
                 } else {
                     let raw = len.sqrt() * ARROW_SCALE * MULTIPLIER;
                     // cannot be larger than 2 squares, but 0.8 so we can account for the tip
-                    raw.min(GRID_SPACING_PX * 1.8)
+                    raw.min(constants.draw_options.grid_spacing * 1.8)
                 };
 
                 let head_reach = ARROW_HEAD_HEIGHT_PX.max(ARROW_HEAD_WIDTH_PX);

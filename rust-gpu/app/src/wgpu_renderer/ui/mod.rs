@@ -147,6 +147,12 @@ impl UI {
                     "Normalise Vector Arrows",
                 );
 
+                self.drag_value(
+                    ui,
+                    &mut manager.input_values.draw_ui_options.grid_spacing,
+                    "Grid Spacing",
+                );
+
                 ui.checkbox(
                     &mut manager.input_values.draw_ui_options.draw_field_lines,
                     "Draw Field Lines",
@@ -163,6 +169,11 @@ impl UI {
                         .electric_ui_options
                         .equipotential_color_rgba,
                     "Equipotential Line Color",
+                );
+
+                ui.checkbox(
+                    &mut manager.input_values.draw_ui_options.draw_null_points,
+                    "Draw Null Points",
                 );
 
                 self.drag_value(

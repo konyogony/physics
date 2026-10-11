@@ -84,9 +84,9 @@ impl From<&InputValues> for DrawOptions {
             draw_potential: value.draw_ui_options.draw_potential as u32,
             draw_field_lines: value.draw_ui_options.draw_field_lines as u32,
             draw_normalised_vec: value.draw_ui_options.draw_normalised_vec as u32,
+            draw_null_points: value.draw_ui_options.draw_null_points as u32,
+            grid_spacing: value.draw_ui_options.grid_spacing,
             _pad0: 0.0,
-            _pad1: 0.0,
-            _pad2: 0.0,
         }
     }
 }

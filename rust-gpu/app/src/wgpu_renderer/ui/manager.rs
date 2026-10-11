@@ -68,6 +68,8 @@ impl Default for InputValues {
                 draw_potential: false,
                 draw_field_lines: false,
                 draw_normalised_vec: true,
+                draw_null_points: false,
+                grid_spacing: 50.0,
             },
             particle_ui_options: ParticleUIOptions {
                 time_scale: (1.0, 0.0),
@@ -105,6 +107,8 @@ pub struct DrawUIOptions {
     pub draw_potential: bool,
     pub draw_field_lines: bool,
     pub draw_normalised_vec: bool,
+    pub draw_null_points: bool,
+    pub grid_spacing: f32,
 }
 
 // current, previous

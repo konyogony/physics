@@ -169,7 +169,6 @@ pub const AXIS_COLOR: Vec4 = Vec4::new(1.0, 1.0, 1.0, 0.8);
 pub const BG_COLOR: Vec4 = Vec4::new(0.0, 0.0, 0.0, 1.0);
 pub const HIGHLIGHT_COLOR: Vec4 = Vec4::new(0.0, 1.0, 1.0, 0.4);
 pub const GRID_THICKNESS_PX: f32 = 1.0;
-pub const GRID_SPACING_PX: f32 = 50.0;
 pub const ARROW_THICKNESS_PX: f32 = 1.0;
 pub const ARROW_HEAD_WIDTH_PX: f32 = 4.0;
 pub const ARROW_HEAD_HEIGHT_PX: f32 = 10.0;
@@ -209,8 +208,8 @@ pub struct DrawOptions {
     pub draw_potential: u32,
     pub draw_field_lines: u32,
     pub draw_normalised_vec: u32,
+    pub draw_null_points: u32,
+    pub grid_spacing: f32,
     //  cannot use arrays to pad uniform buffers
     pub _pad0: f32,
-    pub _pad1: f32,
-    pub _pad2: f32,
 }
