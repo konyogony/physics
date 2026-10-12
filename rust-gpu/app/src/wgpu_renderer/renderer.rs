@@ -173,8 +173,20 @@ impl Renderer {
                 self.electric_manager.num_particles_per_charge,
             );
 
-            // Dont forget to drop after each pass
             drop(cpass);
+
+            let buffer_size = (self.electric_manager.size.width
+                * self.electric_manager.size.height
+                * std::mem::size_of::<f32>() as u32) as u64;
+            cmd_encoder.copy_buffer_to_buffer(
+                &self.electric_manager.electric_storage_buffers.potential,
+                0,
+                &self.electric_manager.staging_potential_buffer,
+                0,
+                buffer_size,
+            );
+
+            // Dont forget to drop after each pass
             self.electric_manager.field_dirty = false;
         }
 
@@ -193,7 +205,23 @@ impl Renderer {
 
         drop(cpass);
 
-        let labels: Vec<(egui::Pos2, f32)> = self
+        let plate_labels: Vec<(Vec<egui::Pos2>, f32)> = self
+            .electric_manager
+            .plates
+            .clone()
+            .into_iter()
+            .map(|p| {
+                (
+                    p.edges
+                        .chunks_exact(2)
+                        .map(|c| egui::pos2(c[0], c[1]))
+                        .collect(),
+                    p.potential,
+                )
+            })
+            .collect();
+
+        let charge_labels: Vec<(egui::Pos2, f32)> = self
             .electric_manager
             .charges
             .clone()
@@ -201,13 +229,25 @@ impl Renderer {
             .map(|c| (c.position.into(), c.charge))
             .collect();
 
+        let potential_labels = if shader_constants.draw_options.draw_potential == 1 {
+            self.electric_manager
+                .get_equipotential_labels(shader_constants.electric_options.equipotential_spacing)
+        } else {
+            Vec::new()
+        };
+
+        let pointer_potential = self.electric_manager.pointer_potential;
+
         // Before render pass we prepare
         self.ui_manager.prepare(
             window,
             &self.device,
             &self.queue,
             &mut cmd_encoder,
-            &labels,
+            &charge_labels,
+            &plate_labels,
+            &potential_labels,
+            pointer_potential,
             self.ui_manager
                 .input_values
                 .electric_ui_options
@@ -290,6 +330,31 @@ impl Renderer {
 
         // Submit once the completed draw call.
         self.queue.submit(std::iter::once(cmd_encoder.finish()));
+
+        // Now, we can copy the data from buffer back into a &[f32] stored on the CPU
+        if need_field_update {
+            let buffer_slice = self.electric_manager.staging_potential_buffer.slice(..);
+            let (sender, reciever) = std::sync::mpsc::channel();
+            buffer_slice.map_async(wgpu::MapMode::Read, move |res| {
+                sender.send(res).unwrap();
+            });
+
+            self.device.poll(wgpu::wgt::PollType::Wait {
+                submission_index: None,
+                timeout: None,
+            })?;
+
+            if let Ok(Ok(())) = reciever.recv() {
+                {
+                    let mapped_view = buffer_slice.get_mapped_range();
+                    let data: &[f32] = bytemuck::cast_slice(&mapped_view);
+                    self.electric_manager
+                        .potential_cpu_cache
+                        .copy_from_slice(data);
+                }
+                self.electric_manager.staging_potential_buffer.unmap()
+            }
+        }
         Ok(())
     }
 }

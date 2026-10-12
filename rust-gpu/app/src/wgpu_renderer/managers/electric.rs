@@ -12,6 +12,7 @@ use shaders_shared::PX_PER_UNIT;
 use shaders_shared::Plate;
 use shaders_shared::SEGMENTS_PER_PLATE;
 use shaders_shared::Segment;
+use wgpu::BufferDescriptor;
 use wgpu::Device;
 use wgpu::Queue;
 use winit::dpi::PhysicalSize;
@@ -35,6 +36,18 @@ pub struct ElectricManager {
     pub size: PhysicalSize<u32>,
     pub tracing_capacity_size: usize,
     pub field_dirty: bool,
+    // on updates we can take sample of potential for: equpotential text & showing voltage at any
+    // point.
+    // P.S. We do not add the creation of these buffers directly into the global buffer module,
+    // since it will not be directly used by pipeline (and the limit is 6)
+    pub potential_cpu_cache: Vec<f32>,
+    pub staging_potential_buffer: wgpu::Buffer,
+    pub pointer_potential: (egui::Pos2, f32),
+}
+
+pub struct EquipotentialLabel {
+    pub screen_pos: egui::Pos2,
+    pub potential: f32,
 }
 
 impl ElectricManager {
@@ -73,6 +86,17 @@ impl ElectricManager {
             .electric
             .create_electric_bind_groups(device, &electric_storage_buffers);
 
+        let potential_buffer_size =
+            (size.width * size.height * std::mem::size_of::<f32>() as u32) as u64;
+        let staging_potential_buffer = device.create_buffer(&BufferDescriptor {
+            label: Some("StagingPotentialBuffer"),
+            size: potential_buffer_size,
+            usage: wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::MAP_READ,
+            mapped_at_creation: false,
+        });
+
+        let potential_cpu_cache = vec![0.0; (size.width * size.height) as usize];
+
         Self {
             plates: initial_plates,
             segments,
@@ -89,6 +113,9 @@ impl ElectricManager {
             size,
             tracing_capacity_size,
             field_dirty: true,
+            potential_cpu_cache,
+            staging_potential_buffer,
+            pointer_potential: (egui::Pos2::ZERO, 0.0),
         }
     }
 
@@ -149,6 +176,17 @@ impl ElectricManager {
         self.num_particles_per_charge = num_particles_per_charge;
         self.segments_dirty = true;
         self.field_dirty = true;
+
+        let potential_buffer_size =
+            (new_size.width * new_size.height * std::mem::size_of::<f32>() as u32) as u64;
+        self.staging_potential_buffer = device.create_buffer(&BufferDescriptor {
+            label: Some("StagingPotentialBuffer"),
+            size: potential_buffer_size,
+            usage: wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::MAP_READ,
+            mapped_at_creation: false,
+        });
+
+        self.potential_cpu_cache = vec![0.0; (new_size.width * new_size.height) as usize];
     }
 
     pub fn ensure_tracing_capacity(
@@ -301,6 +339,150 @@ impl ElectricManager {
             0,
             bytemuck::cast_slice(&self.plates),
         );
+    }
+
+    // generate labels
+
+    pub fn get_equipotential_labels(&self, spacing: f32) -> Vec<EquipotentialLabel> {
+        let mut labels = Vec::new();
+        let width = self.size.width as usize;
+        let height = self.size.height as usize;
+        let total = width * height;
+
+        if spacing <= 0.001 || self.potential_cpu_cache.len() < total || total == 0 {
+            return labels;
+        }
+
+        let mut rays: Vec<(egui::Pos2, egui::Vec2, f32)> = Vec::new();
+        for charge in &self.charges {
+            let center = egui::pos2(charge.position[0], charge.position[1]);
+            let angles = [
+                std::f32::consts::FRAC_PI_4,
+                3.0 * std::f32::consts::FRAC_PI_4,
+                5.0 * std::f32::consts::FRAC_PI_4,
+                7.0 * std::f32::consts::FRAC_PI_4,
+            ];
+            let offset = 26.0;
+            for &angle in &angles {
+                let dir = egui::vec2(angle.cos(), angle.sin());
+                rays.push((center + dir * offset, dir, 800.0));
+            }
+        }
+        for plate in &self.plates {
+            let edges = [
+                glam::Vec2::new(plate.edges[0], plate.edges[1]),
+                glam::Vec2::new(plate.edges[2], plate.edges[3]),
+                glam::Vec2::new(plate.edges[4], plate.edges[5]),
+                glam::Vec2::new(plate.edges[6], plate.edges[7]),
+            ];
+            let winding = (edges[1] - edges[0]).perp_dot(edges[2] - edges[0]).signum();
+            let edge_pairs = [
+                (edges[0], edges[1]),
+                (edges[1], edges[2]),
+                (edges[2], edges[3]),
+                (edges[3], edges[0]),
+            ];
+
+            for (start, end) in edge_pairs {
+                let edge_vec = end - start;
+                let len = edge_vec.length();
+                if len <= EPSILON {
+                    continue;
+                }
+                let tangent = edge_vec / len;
+                let normal = glam::Vec2::new(tangent.y, -tangent.x) * winding;
+                let midpoint = (start + end) * 0.5;
+
+                let start_pos =
+                    egui::pos2(midpoint.x, midpoint.y) + egui::vec2(normal.x, normal.y) * 16.0;
+                let dir = egui::vec2(normal.x, normal.y);
+                rays.push((start_pos, dir, 800.0));
+            }
+        }
+
+        let min_badge_dist_sq = 55.0 * 55.0;
+        let step_px = 4.0;
+
+        for (start, dir, max_len) in rays {
+            let num_steps = (max_len / step_px) as usize;
+            let mut prev_pos = start;
+
+            let sx = prev_pos.x.floor() as i32;
+            let sy = prev_pos.y.floor() as i32;
+            if sx < 0 || sy < 0 || sx >= width as i32 || sy >= height as i32 {
+                continue;
+            }
+            let mut prev_phi = self.potential_cpu_cache[sx as usize + sy as usize * width];
+            let mut last_label_t = -100.0;
+
+            for step in 1..=num_steps {
+                let t = step as f32 * step_px;
+                let curr_pos = start + dir * t;
+                let cx = curr_pos.x.floor() as i32;
+                let cy = curr_pos.y.floor() as i32;
+                if cx < 0 || cy < 0 || cx >= width as i32 || cy >= height as i32 {
+                    break;
+                }
+
+                let curr_phi = self.potential_cpu_cache[cx as usize + cy as usize * width];
+                let k_prev = (prev_phi / spacing).floor();
+                let k_curr = (curr_phi / spacing).floor();
+
+                if k_prev != k_curr {
+                    let target_k = if k_curr > k_prev { k_curr } else { k_prev };
+                    let target_v = target_k * spacing;
+
+                    let denom = curr_phi - prev_phi;
+                    let frac = if denom.abs() > 1e-5 {
+                        ((target_v - prev_phi) / denom).clamp(0.0, 1.0)
+                    } else {
+                        0.5
+                    };
+                    let exact_pos = egui::pos2(
+                        prev_pos.x + (curr_pos.x - prev_pos.x) * frac,
+                        prev_pos.y + (curr_pos.y - prev_pos.y) * frac,
+                    );
+
+                    let spacing_on_ray_ok = (t - last_label_t) >= 50.0;
+
+                    let spacing_globally_ok = !labels.iter().any(|l: &EquipotentialLabel| {
+                        let dx = l.screen_pos.x - exact_pos.x;
+                        let dy = l.screen_pos.y - exact_pos.y;
+                        dx * dx + dy * dy < min_badge_dist_sq
+                    });
+
+                    if spacing_on_ray_ok && spacing_globally_ok {
+                        labels.push(EquipotentialLabel {
+                            screen_pos: exact_pos,
+                            potential: target_v,
+                        });
+                        last_label_t = t;
+                    }
+                }
+
+                prev_pos = curr_pos;
+                prev_phi = curr_phi;
+            }
+        }
+
+        labels
+    }
+
+    pub fn update_pointer_potential(&mut self, mouse_pos: [f32; 2]) {
+        let x = mouse_pos[0].floor() as i32;
+        let y = mouse_pos[1].floor() as i32;
+        let width = self.size.width as i32;
+        let height = self.size.height as i32;
+
+        if x < 0 || y < 0 || x >= width || y >= height {
+            return;
+        }
+
+        let index = (x as usize) + (y as usize) * (self.size.width as usize);
+        // use get since safer..
+        if let Some(&val) = self.potential_cpu_cache.get(index) {
+            self.pointer_potential = (egui::pos2(mouse_pos[0], mouse_pos[1]), val);
+        }
     }
 
     // Plates & Segments

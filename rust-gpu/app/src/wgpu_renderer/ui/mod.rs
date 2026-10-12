@@ -2,7 +2,7 @@
 use crate::wgpu_renderer::ui::manager::{CurrentTool, PlateSpawnStage, UIManager};
 use egui::{Button, Color32, DragValue, Pos2, Stroke, Ui};
 
-const COMPONENT_NAMES: [&str; 4] = ["X", "Y", "Z", "W"];
+//const COMPONENT_NAMES: [&str; 4] = ["X", "Y", "Z", "W"];
 
 pub mod manager;
 
@@ -496,20 +496,20 @@ impl UI {
         });
     }
 
-    pub fn vec<const N: usize>(&self, ui: &mut Ui, values: &mut [f32; N], label: &str, speed: f32) {
-        ui.horizontal(|ui| {
-            ui.label(label);
-            for (i, val) in values.iter_mut().enumerate() {
-                if i < COMPONENT_NAMES.len() {
-                    ui.add(
-                        DragValue::new(val)
-                            .prefix(format!("{}: ", COMPONENT_NAMES[i]))
-                            .speed(speed),
-                    );
-                } else {
-                    ui.add(DragValue::new(val).prefix(format!("#{}: ", i)).speed(speed));
-                }
-            }
-        });
-    }
+    //pub fn vec<const N: usize>(&self, ui: &mut Ui, values: &mut [f32; N], label: &str, speed: f32) {
+    //    ui.horizontal(|ui| {
+    //        ui.label(label);
+    //        for (i, val) in values.iter_mut().enumerate() {
+    //            if i < COMPONENT_NAMES.len() {
+    //                ui.add(
+    //                    DragValue::new(val)
+    //                        .prefix(format!("{}: ", COMPONENT_NAMES[i]))
+    //                        .speed(speed),
+    //                );
+    //            } else {
+    //                ui.add(DragValue::new(val).prefix(format!("#{}: ", i)).speed(speed));
+    //            }
+    //        }
+    //    });
+    //}
 }

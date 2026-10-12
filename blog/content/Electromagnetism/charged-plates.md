@@ -437,8 +437,30 @@ To get more direct code snippets, check out the [GitHub repository](https://gith
 
 # Results and conclusion
 
-In the end, we were able to try out 2 completely different methods for implementing metal plates: the _Jacobi Iterator_ and the so called _Boundary Element Method_. To be continued...
+In the end, we were able to try out 2 completely different methods for implementing metal plates: the _Jacobi Iterator_ and the so called _Boundary Element Method_.
+The second option resulted in a much more efficient simulation, since it combined both analytic and deterministic results. The result is the ability to create plates that interact with the electric field.
 
 <div class="img-container">
   <img src="./assets/two-plates.webp" alt="Two oppositly charged plates" />
 </div>
+
+However, the journey does not stop here. As part of this update, I have also reworked the UI/UX experience. Most notebly, in addition to the floating window, a new top bar was added.
+This top bar gives more information and gives direct access to certain features like tool selection and time management without the hassle of a menu.
+The tool selection menu was expanded to accomodate: Creation of Charge, Creation of Test Charge, Creation of Metal Plate and the Removal of any element. The metal plate spawn tool uses a multi-stage setup algorithm,
+to record the exact points of all 4 vertices, and prompt the user for the Voltage selection. In the end, this gives the freedom to experiment with various systems and designs. The following is a showcase of all the possible configurations possible.
+
+<div class="img-container">
+  <img src="./assets/showcase1.webp" alt="Two irregular metal plates and test charges" />
+  <img src="./assets/showcase2.webp" alt="A densely packed vector grid with a metal plate and a charge" />
+  <img src="./assets/showcase3.webp" alt="Two identical metal plates and null zones displayed" />
+  <img src="./assets/showcase4.webp" alt="Metal plate with static charges and field lines turned on" />
+  <img src="./assets/showcase5.webp" alt="Equipotential lines between metal plate and charges" />
+  <img src="./assets/showcase6.webp" alt="Two charges and null zone" />
+</div>
+
+In the future, I want to focus on:
+
+- (a) Optimising, packaging and improving the current simulation to the best of my ability, with features such as presets, multi-threading, and easier controls
+- (b) Exploring other areas of electro-magnetism following the Caltech notes (but currently I got really interested in QM via the OCW lectures, so I might do a few topics on that first)
+
+Thank you for reading, and see you all in the next chapter!

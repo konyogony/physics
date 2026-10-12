@@ -1,4 +1,4 @@
-use crate::wgpu_renderer::ui::UI;
+use crate::wgpu_renderer::{managers::electric::EquipotentialLabel, ui::UI};
 use egui::Vec2;
 use enum_iterator::Sequence;
 use shaders_shared::Plate;
@@ -9,7 +9,7 @@ use winit::{event::WindowEvent, window::Window};
 #[derive(Clone, Copy, Default, Sequence, Display, PartialEq, Eq)]
 pub enum CurrentTool {
     #[default]
-    #[strum(to_string = "Spawn Charge")]
+    #[strum(to_string = "Spawn Static Charge")]
     SpawnCharge,
     #[strum(to_string = "Spawn Test Charge")]
     SpawnParticle,
@@ -17,6 +17,8 @@ pub enum CurrentTool {
     SpawnPlate,
     #[strum(to_string = "Remove Element")]
     RemoveItem,
+    #[strum(to_string = "Measure Potential")]
+    Potential,
 }
 
 // Basically the last action user has done.
@@ -265,6 +267,9 @@ impl UIManager {
         queue: &Queue,
         encoder: &mut CommandEncoder,
         charges: &[(egui::Pos2, f32)],
+        plates: &[(Vec<egui::Pos2>, f32)],
+        potentials: &[EquipotentialLabel],
+        pointer_potential: (egui::Pos2, f32),
         radius: f32,
     ) {
         let raw_input = self.state.take_egui_input(window);
@@ -277,7 +282,7 @@ impl UIManager {
             // Awesome way to draw text, was easier than wgpu_text
             let painter = ui.ctx().layer_painter(egui::LayerId::new(
                 egui::Order::Foreground,
-                egui::Id::new("charge_labels"),
+                egui::Id::new("labels"),
             ));
 
             if !self.pointer_over_ui {
@@ -296,6 +301,38 @@ impl UIManager {
                 }
             }
 
+            for (vertices, potential) in plates {
+                let min_x = vertices.iter().map(|v| v.x).fold(f32::INFINITY, f32::min) / ppp;
+                let max_x = vertices
+                    .iter()
+                    .map(|v| v.x)
+                    .fold(f32::NEG_INFINITY, f32::max)
+                    / ppp;
+                let min_y = vertices.iter().map(|v| v.y).fold(f32::INFINITY, f32::min) / ppp;
+                let max_y = vertices
+                    .iter()
+                    .map(|v| v.y)
+                    .fold(f32::NEG_INFINITY, f32::max)
+                    / ppp;
+
+                let plate_w = max_x - min_x;
+                let plate_h = max_y - min_y;
+                let screen_pos = egui::pos2((min_x + max_x) * 0.5, (min_y + max_y) * 0.5);
+
+                let label = format!("{:.1} V", potential);
+
+                let max_font_h = plate_h * 0.7;
+                let max_font_w = (plate_w * 0.85) / (label.len() as f32 * 0.6);
+                let font_size = max_font_h.min(max_font_w).clamp(6.0, 35.0);
+                painter.text(
+                    screen_pos,
+                    egui::Align2::CENTER_CENTER,
+                    label,
+                    egui::FontId::proportional(font_size),
+                    egui::Color32::BLACK,
+                );
+            }
+
             for (pos, charge) in charges {
                 let screen_pos = egui::pos2(pos.x / ppp, pos.y / ppp);
                 let label = format!("{:.1} C", charge);
@@ -305,6 +342,58 @@ impl UIManager {
                     label,
                     egui::FontId::proportional(11.0 * (radius / 15.0)),
                     egui::Color32::BLACK,
+                );
+            }
+
+            if self.input_values.draw_ui_options.draw_potential {
+                for potential_label in potentials {
+                    let screen_pos = egui::pos2(
+                        potential_label.screen_pos.x / ppp,
+                        potential_label.screen_pos.y / ppp,
+                    );
+                    let label = format!("{:.1} V", potential_label.potential);
+                    let color = self
+                        .input_values
+                        .electric_ui_options
+                        .equipotential_color_rgba;
+                    let galley = painter.layout_no_wrap(
+                        label,
+                        egui::FontId::proportional(14.0),
+                        egui::Color32::from_rgb(
+                            (color[0] * 255.0) as u8,
+                            (color[1] * 255.0) as u8,
+                            (color[2] * 255.0) as u8,
+                        ),
+                    );
+                    let rect = egui::Rect::from_center_size(
+                        screen_pos,
+                        galley.size() + egui::vec2(6.0, 2.0),
+                    );
+
+                    painter.rect_filled(rect, 2.0, egui::Color32::from_black_alpha(200));
+                    painter.galley(
+                        rect.min + egui::vec2(3.0, 1.0),
+                        galley,
+                        egui::Color32::from_rgb(180, 240, 255),
+                    );
+                }
+            }
+
+            if self.input_values.tool == CurrentTool::Potential {
+                let screen_pos =
+                    egui::pos2(pointer_potential.0.x / ppp, pointer_potential.0.y / ppp);
+                let label_pos = screen_pos + egui::vec2(16.0, -16.0);
+                let label = format!("{:.2} V", pointer_potential.1);
+                let font_id = egui::FontId::monospace(13.0);
+                let galley =
+                    painter.layout_no_wrap(label, font_id, egui::Color32::from_rgb(255, 255, 120));
+                let rect =
+                    egui::Rect::from_min_size(label_pos, galley.size() + egui::vec2(8.0, 4.0));
+                painter.rect_filled(rect, 3.0, egui::Color32::from_black_alpha(220));
+                painter.galley(
+                    rect.min + egui::vec2(4.0, 2.0),
+                    galley,
+                    egui::Color32::WHITE,
                 );
             }
         });

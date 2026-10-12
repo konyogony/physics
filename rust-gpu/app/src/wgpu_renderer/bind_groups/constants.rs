@@ -4,7 +4,6 @@ use wgpu::{
     BindGroupLayoutEntry, BindingResource, BindingType, Buffer, BufferBinding, Device, Queue,
     ShaderStages,
     util::{BufferInitDescriptor, DeviceExt},
-    wgc::device::queue,
 };
 
 /*

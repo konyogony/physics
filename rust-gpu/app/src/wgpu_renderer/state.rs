@@ -184,6 +184,11 @@ impl State {
             WindowEvent::CursorMoved { position, .. } => {
                 self.mouse
                     .update_pos([position.x as f32, position.y as f32]);
+                if self.renderer.ui_manager.input_values.tool == CurrentTool::Potential {
+                    self.renderer
+                        .electric_manager
+                        .update_pointer_potential(self.mouse.position);
+                }
             }
 
             WindowEvent::MouseInput { state, button, .. } => {
@@ -225,6 +230,7 @@ impl State {
                                 Some(100.0),
                             );
                         }
+                        _ => (),
                     }
                 }
 

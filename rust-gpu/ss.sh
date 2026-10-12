@@ -1,10 +1,9 @@
 #!/bin/bash
-TARGET_DIR="$HOME/Documents/GitHub/math/blog/content/assets"
+TARGET_DIR="$HOME/Documents/GitHub/physics/blog/content/assets"
 mkdir -p "$TARGET_DIR"
 
 FILE_NAME="${1:-physics_capture}"
-SIZE="${2:-100}"
-OFFSET=$((SIZE / 2))
+REQ_W="${2:-1600}"
 
 echo -n "Capturing in 3..."
 sleep 1
@@ -24,25 +23,17 @@ else
     exit 1
 fi
 
-CENTER_X=$((X_OFF + W / 2))
-CENTER_Y=$((Y_OFF + H / 2))
-
-START_X=$((CENTER_X - OFFSET))
-START_Y=$((CENTER_Y - OFFSET))
-
-FINAL_X=$((START_X < X_OFF ? X_OFF : START_X))
-FINAL_Y=$((START_Y < Y_OFF ? Y_OFF : START_Y))
-
-MAX_W=$(((X_OFF + W) - FINAL_X))
-MAX_H=$(((Y_OFF + H) - FINAL_Y))
-
-FINAL_W=$((SIZE > MAX_W ? MAX_W : SIZE))
-FINAL_H=$((SIZE > MAX_H ? MAX_H : SIZE))
-
-[ "$FINAL_W" -lt 1 ] && FINAL_W=1
-[ "$FINAL_H" -lt 1 ] && FINAL_H=1
-
-grim -g "${FINAL_X},${FINAL_Y} ${FINAL_W}x${FINAL_H}" - |
+[ "$REQ_W" -gt "$W" ] && REQ_W="$W"
+REQ_H=$(( REQ_W * 10 / 16 ))
+if [ "$REQ_H" -gt "$H" ]; then
+    REQ_H="$H"
+    REQ_W=$(( REQ_H * 16 / 10 ))
+fi
+[ "$REQ_W" -lt 16 ] && REQ_W=16
+[ "$REQ_H" -lt 10 ] && REQ_H=10
+FINAL_X=$(( X_OFF + (W - REQ_W) / 2 ))
+FINAL_Y=$(( Y_OFF + (H - REQ_H) / 2 ))
+grim -g "${FINAL_X},${FINAL_Y} ${REQ_W}x${REQ_H}" - |
     magick - -quality 90 "${TARGET_DIR}/${FILE_NAME}.webp"
 
-echo "Saved ${FINAL_W}x${FINAL_H} (clamped) centered shot to: ${TARGET_DIR}/${FILE_NAME}.webp"
+echo "Saved ${REQ_W}x${REQ_H} (16:10) centered shot to: ${TARGET_DIR}/${FILE_NAME}.webp"
