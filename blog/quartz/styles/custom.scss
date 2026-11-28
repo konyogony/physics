@@ -131,6 +131,7 @@ span.math.inline,
 .katex {
   text-align: left;
   white-space: nowrap;
+  font-size: 1.05em;
 }
 
 .katex-display {
@@ -138,7 +139,15 @@ span.math.inline,
   overflow-x: auto !important;
   overflow-y: hidden !important;
   -webkit-overflow-scrolling: touch;
-  padding: 0.5rem 0;
+  padding: 0.6rem 0;
+
+  >.katex {
+    font-size: 1.05em;
+  }
+}
+
+.katex .katex-html>.newline {
+  margin-top: 8pt !important;
 }
 
 pre,
@@ -203,8 +212,9 @@ figure[data-rehype-pretty-code-figure] {
     font-size: 1.02rem !important;
   }
 
-  .katex {
-    font-size: 1em;
+  .katex,
+  .katex-display>.katex {
+    font-size: 0.92em;
   }
 
   pre>code {
